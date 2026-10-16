@@ -14,11 +14,11 @@ function greeting() {
 }
 
 const TILES = [
-  { key: "assigned", label: "Assigned to you", icon: "inbox", hint: "Open and yours", to: "/inbox" },
-  { key: "approvals", label: "Waiting for your approval", icon: "shield", hint: "On teams you lead", to: "/inbox" },
-  { key: "urgent", label: "Urgent and unclaimed", icon: "bell", hint: "Urgent or high, no owner", to: "/inbox", alert: true },
+  { key: "assigned", label: "Assigned to you", icon: "inbox", hint: "Open and yours", to: "/inbox?tab=assigned" },
+  { key: "approvals", label: "Waiting for your approval", icon: "shield", hint: "On teams you lead", to: "/inbox?tab=approvals" },
+  { key: "urgent", label: "Urgent and unclaimed", icon: "bell", hint: "Urgent or high, no owner", to: "/inbox?tab=unassigned_urgent", alert: true },
   { key: "overdue", label: "Overdue", icon: "clock", hint: "Open and past due", to: "/items?overdue=true", alert: true },
-  { key: "stale", label: "Quiet for 3 days", icon: "users", hint: "Open, no activity", to: "/inbox" },
+  { key: "stale", label: "Quiet for 3 days", icon: "users", hint: "Open, no activity", to: "/inbox?tab=stale" },
 ];
 
 export default function Dashboard() {

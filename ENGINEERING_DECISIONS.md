@@ -421,3 +421,19 @@ for their WHERE clause, so a count can never include an item the list would hide
 
 **Trade-off.** The first load makes up to six requests instead of one. They are small, run in
 parallel and each hits an index, and in return every number on the screen is exact.
+
+## D-25 Mark all as read stops at the newest notification the reader saw
+
+**Situation.** With many unread notifications, clicking each one is the only way to clear the
+count. A plain "mark everything read" would also clear a notification that arrived after the page
+loaded, which the reader never saw.
+
+**Decision.** `POST /notifications/read` takes `up_to`, the id of the newest notification on the
+reader's screen, and marks that one and every older unread one for that user. Ids only grow, so
+anything that arrives later stays unread and keeps the count honest.
+
+**Trade-off.** The client must send the id it saw instead of calling a bare endpoint. That is one
+field, and it is the only way the server can know what the reader actually looked at. Ids are
+handed out when a row is inserted, not when it commits, so a notification inserted just before the
+newest one but committed after the page loaded can still be marked. That window is one worker
+transaction long.
