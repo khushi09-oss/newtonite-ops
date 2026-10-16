@@ -2,7 +2,7 @@
 finn.okafor leads Risk; dev.mehta is a member of Risk; ava.okafor is the global admin."""
 
 from concurrent.futures import ThreadPoolExecutor
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import psycopg
 import pytest
@@ -36,7 +36,11 @@ def event_count(item_id) -> int:
 
 
 def new_item(client, team_id, title="Queue backed up"):
-    r = client.post("/items", json={"team_id": str(team_id), "kind": "incident", "title": title})
+    r = client.post(
+        "/items",
+        json={"team_id": str(team_id), "kind": "incident", "title": title},
+        headers={"Idempotency-Key": str(uuid4())},
+    )
     assert r.status_code == 201, r.text
     return r.json()
 
@@ -53,9 +57,10 @@ def test_viewer_sees_but_cannot_create(client, login, team_id):
     login("ben.okafor@newtonite.dev")
     assert client.get(f"/items/{one_item('Risk')['id']}").status_code == 200
     body = {"team_id": str(team_id("Risk")), "kind": "task", "title": "viewer attempt"}
-    assert client.post("/items", json=body).status_code == 403
+    key = {"Idempotency-Key": str(uuid4())}
+    assert client.post("/items", json=body, headers=key).status_code == 403
     body["team_id"] = str(team_id("Payments"))
-    assert client.post("/items", json=body).status_code == 404
+    assert client.post("/items", json=body, headers=key).status_code == 404
 
 
 def test_viewer_cannot_claim(client, login):

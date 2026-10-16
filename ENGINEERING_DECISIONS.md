@@ -160,3 +160,35 @@ banner like any other change.
 **Trade-off.** Someone editing a title will get a 409 because a colleague commented. The
 banner shows exactly that and offers retry, which is a smaller cost than history that skips
 comments or a version number that lies about what changed.
+
+## D-11 The worker declares the kinds it handles, and each row runs in a savepoint
+
+**Situation.** The outbox will carry more than one kind of job over time, the tests share a
+database with a live worker, and a handler that fails halfway must not leave half its writes
+behind while the row is retried.
+
+**Decision.** `claim_batch` selects only rows whose kind is in the worker's handler table, with
+`FOR UPDATE SKIP LOCKED`, so a second worker takes different rows and a row of an unknown kind is
+left for a worker that knows it. Every handler runs inside its own savepoint: on failure the
+savepoint rolls back, the outer transaction records the attempt, the backoff and the error, and
+marks the row dead on the eighth failure. A worker killed mid-batch loses its uncommitted
+transaction, the locks vanish, and the next poll picks the rows up again; that is safe because
+handlers are idempotent. Once a minute the worker logs any pending rows of a kind nobody handles,
+so a misspelt kind cannot wait in silence.
+
+**Trade-off.** A dead row needs a person to look at `last_error` and reset it. Rejected
+retrying forever because a poison row would then hide every row behind it in the log.
+
+## D-12 Idempotency stores only successes, under a lock per user and key
+
+**Situation.** Two identical requests can arrive in the same millisecond, and a request can fail
+for a reason the client will fix before retrying with the same key.
+
+**Decision.** `idempotent()` takes a transaction-scoped advisory lock on the user and key, then
+looks for a stored response. A hit with the same body hash is replayed; a hit with a different
+hash is 422. Otherwise the handler runs, and the response is stored in the same transaction as
+the write it describes. A handler that raises stores nothing, so the retry runs for real.
+`POST /items` requires the header; transitions and comments honour it when sent.
+
+**Trade-off.** One stored row per keyed write, purged after 24 hours by the worker. Keys are
+scoped to the user, so two users cannot collide and one user cannot replay another's write.
