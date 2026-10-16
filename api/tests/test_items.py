@@ -256,7 +256,8 @@ def test_team_members_hidden_from_outsiders(client, login, team_id):
     assert client.get(f"/teams/{team_id('Payments')}/members").status_code == 404
     risk = client.get(f"/teams/{team_id('Risk')}/members")
     assert risk.status_code == 200
-    assert ("Finn Okafor", "lead") in {(m["name"], m["role"]) for m in risk.json()}
+    assert risk.json()["capped"] is False
+    assert ("Finn Okafor", "lead") in {(m["name"], m["role"]) for m in risk.json()["members"]}
 
 
 def test_item_says_whether_i_watch_it(client, login):
