@@ -12,7 +12,8 @@ export default function Items() {
   const [params, setParams] = useSearchParams();
   const filters = Object.fromEntries(FILTERS.map((f) => [f, params.get(f) || ""]));
   const [search, setSearch] = useState(filters.q);
-  const [creating, setCreating] = useState(false);
+  // The sidebar's "New item" lands here with ?new=1.
+  const [creating, setCreating] = useState(params.get("new") === "1");
 
   // The search box waits for a pause before it touches the URL, so every keystroke is not a request.
   useEffect(() => {

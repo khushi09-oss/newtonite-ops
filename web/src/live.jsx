@@ -28,11 +28,13 @@ export function LiveUpdates({ itemId, onEnded, children }) {
       if (!cached || cached.version !== version) {
         qc.invalidateQueries({ queryKey: ["item", id] });
         qc.invalidateQueries({ queryKey: ["inbox"] });
+        qc.invalidateQueries({ queryKey: ["dashboard"] });
       }
     });
     source.addEventListener("notifications", () => {
       qc.invalidateQueries({ queryKey: ["notifications"] });
       qc.invalidateQueries({ queryKey: ["inbox"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
     });
     source.addEventListener("ended", (e) => {
       // Signed out elsewhere, or no longer allowed to see this item: stop, and let the page find out.

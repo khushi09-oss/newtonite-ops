@@ -4,11 +4,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { DemoBanner } from "../ui";
 
-const QUICK = [
-  ["ava.okafor@newtonite.dev", "Ava, admin"],
-  ["finn.okafor@newtonite.dev", "Finn, leads Risk"],
-  ["dev.mehta@newtonite.dev", "Dev, on Risk"],
-  ["ben.okafor@newtonite.dev", "Ben, leads Compliance, views Risk"],
+// The four roles worth trying first: each sees the same app differently.
+const ROLES = [
+  { email: "ava.okafor@newtonite.dev", role: "Admin", person: "Ava Okafor", what: "Every team, and the Admin page" },
+  { email: "finn.okafor@newtonite.dev", role: "Risk lead", person: "Finn Okafor", what: "Approves and closes Risk work" },
+  { email: "dev.mehta@newtonite.dev", role: "Risk member", person: "Dev Mehta", what: "Claims and works Risk items" },
+  { email: "ben.okafor@newtonite.dev", role: "Compliance lead", person: "Ben Okafor", what: "Leads Compliance, views Risk" },
 ];
 
 const GSI_SRC = "https://accounts.google.com/gsi/client";
@@ -38,7 +39,7 @@ export default function Login() {
     try {
       await request();
       qc.clear();
-      navigate("/inbox");
+      navigate("/");
     } catch (e) {
       setError(e.message);
     } finally {
@@ -53,15 +54,20 @@ export default function Login() {
   return (
     <div className="login">
       <div className="login-card">
+        <div className="login-head">
+          <span className="brand-mark">N</span>
+          <h1>Sign in to Newtonite Ops</h1>
+          <p className="muted">
+            {clientId
+              ? demo
+                ? "Use any Google account. In this demo you join the Support team."
+                : "Use the Google account your admin invited."
+              : "Operational work for every team, in one place."}
+          </p>
+        </div>
         {demo && <DemoBanner />}
-        <h1>Newtonite Ops</h1>
         {clientId ? (
           <>
-            <p className="muted">
-              {demo
-                ? "Sign in with any Google account. In this demo you join the Support team."
-                : "Sign in with the Google account your admin invited."}
-            </p>
             <GoogleButton
               clientId={clientId}
               onCredential={(credential) =>
@@ -74,7 +80,8 @@ export default function Login() {
           !devLogin && <p className="muted">Sign-in is not configured on this server.</p>
         )}
         {error && <p className="error">{error}</p>}
-        {devLogin && <DevSignIn demo={demo} divided={Boolean(clientId)} busy={busy} onSignIn={(email) => finish(() => api("/auth/dev-login", { method: "POST", body: { email } }))} />}
+        {devLogin && clientId && <div className="or">or try it as one of the demo people</div>}
+        {devLogin && <DevSignIn busy={busy} onSignIn={(email) => finish(() => api("/auth/dev-login", { method: "POST", body: { email } }))} />}
       </div>
     </div>
   );
@@ -104,35 +111,38 @@ function GoogleButton({ clientId, onCredential, onError }) {
   return <div ref={slot} className="google-slot" />;
 }
 
-function DevSignIn({ demo, divided, busy, onSignIn }) {
+function DevSignIn({ busy, onSignIn }) {
   const [email, setEmail] = useState("");
   return (
-    <form
-      className={divided ? "dev-signin divided" : "dev-signin"}
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSignIn(email.trim());
-      }}
-    >
-      <p className="muted">
-        {demo
-          ? "Or try it instantly as one of the demo people. No account needed."
-          : "Development sign-in: any seeded user, no password. Off in production."}
-      </p>
-      <label>
-        Email
-        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="first.last@newtonite.dev" />
-      </label>
-      <button className="primary" disabled={busy || !email}>
-        Sign in
-      </button>
+    <div className="dev-signin">
       <div className="quick">
-        {QUICK.map(([value, label]) => (
-          <button key={value} type="button" className="chip" onClick={() => onSignIn(value)} disabled={busy}>
-            {label}
+        {ROLES.map((r) => (
+          <button key={r.email} type="button" className="role-card" onClick={() => onSignIn(r.email)} disabled={busy}>
+            <strong>{r.role}</strong>
+            <span>{r.person}</span>
+            <span>{r.what}</span>
           </button>
         ))}
       </div>
-    </form>
+      <details>
+        <summary className="muted small">Sign in with a seeded email instead</summary>
+        <form
+          className="dev-signin"
+          style={{ marginTop: 10 }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSignIn(email.trim());
+          }}
+        >
+          <label>
+            Email
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="first.last@newtonite.dev" />
+          </label>
+          <button className="primary" disabled={busy || !email}>
+            Sign in
+          </button>
+        </form>
+      </details>
+    </div>
   );
 }

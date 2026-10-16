@@ -30,36 +30,122 @@ export const TRANSITION_LABEL = {
   closed: () => "Close",
 };
 
+// One glyph per status, so state reads from shape as well as colour.
+const STATUS_GLYPH = {
+  new: <circle cx="7" cy="7" r="5.25" fill="none" stroke="currentColor" strokeWidth="1.5" />,
+  triaged: <circle cx="7" cy="7" r="5.25" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="2.2 2" />,
+  in_progress: (
+    <>
+      <circle cx="7" cy="7" r="5.25" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M7 3.5a3.5 3.5 0 0 1 0 7z" fill="currentColor" />
+    </>
+  ),
+  awaiting_approval: (
+    <>
+      <circle cx="7" cy="7" r="5.25" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="7" cy="7" r="2" fill="currentColor" />
+    </>
+  ),
+  approved: (
+    <>
+      <circle cx="7" cy="7" r="6" fill="currentColor" />
+      <path d="M4.6 7.2 6.3 8.8 9.4 5.6" fill="none" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </>
+  ),
+  resolved: (
+    <>
+      <circle cx="7" cy="7" r="6" fill="currentColor" />
+      <path d="M4.6 7.2 6.3 8.8 9.4 5.6" fill="none" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </>
+  ),
+  closed: (
+    <>
+      <circle cx="7" cy="7" r="6" fill="currentColor" />
+      <path d="M4.8 4.8l4.4 4.4M9.2 4.8 4.8 9.2" stroke="#fff" strokeWidth="1.4" strokeLinecap="round" />
+    </>
+  ),
+};
+
+export function StatusIcon({ value }) {
+  return (
+    <svg className={`status-icon status-${value}`} width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+      {STATUS_GLYPH[value]}
+    </svg>
+  );
+}
+
 export function Status({ value }) {
   return (
     <span className={`status status-${value}`}>
-      <i aria-hidden="true" />
+      <StatusIcon value={value} />
       {STATUS_LABEL[value] || value}
     </span>
+  );
+}
+
+// Signal bars for high to low, a filled square for urgent: the shape carries it, the word confirms it.
+export function PriorityIcon({ value }) {
+  if (value === 0) {
+    return (
+      <svg className="priority-icon priority-0" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+        <rect x="1" y="1" width="12" height="12" rx="3" fill="currentColor" />
+        <path d="M7 4v3.6" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" />
+        <circle cx="7" cy="10" r="0.9" fill="#fff" />
+      </svg>
+    );
+  }
+  const lit = 4 - value; // high 3, normal 2, low 1
+  return (
+    <svg className={`priority-icon priority-${value}`} width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+      {[0, 1, 2].map((b) => (
+        <rect key={b} x={1.5 + b * 4} y={9 - b * 3} width="3" height={4 + b * 3} rx="1" fill="currentColor" opacity={b < lit ? 1 : 0.22} />
+      ))}
+    </svg>
   );
 }
 
 export function Priority({ value, compact }) {
   return (
     <span className={`priority priority-${value}`} title={PRIORITY_LABEL[value]}>
-      P{value}
+      <PriorityIcon value={value} />
       {compact ? null : <span className="priority-word">{PRIORITY_LABEL[value]}</span>}
+    </span>
+  );
+}
+
+export const itemKey = (number) => (number ? `OPS-${number}` : "");
+
+export function ItemKey({ number }) {
+  return <span className="item-key">{itemKey(number)}</span>;
+}
+
+// A stable, soft tint per person, so the same face is recognisable across screens.
+const TINTS = ["#E8EDFF", "#FDEBDD", "#DFF5EC", "#FCF1D5", "#F6E3F0", "#E4F1FB", "#ECE8FB", "#F1F2F4"];
+const INKS = ["#3046B8", "#A44A12", "#13774F", "#8A5C00", "#9A3A75", "#1F6596", "#5A44B8", "#4A515C"];
+
+export function Avatar({ name, size = 20 }) {
+  const initials = (name || "?")
+    .split(" ")
+    .map((p) => p[0])
+    .join("")
+    .slice(0, 2);
+  const h = [...(name || "")].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % TINTS.length;
+  return (
+    <span
+      className="avatar"
+      aria-hidden="true"
+      style={{ width: size, height: size, fontSize: size * 0.42, background: TINTS[h], color: INKS[h] }}
+    >
+      {initials}
     </span>
   );
 }
 
 export function Person({ name, muted }) {
   if (!name) return <span className="muted">{muted || "Nobody"}</span>;
-  const initials = name
-    .split(" ")
-    .map((p) => p[0])
-    .join("")
-    .slice(0, 2);
   return (
     <span className="person">
-      <span className="avatar" aria-hidden="true">
-        {initials}
-      </span>
+      <Avatar name={name} />
       {name}
     </span>
   );
@@ -129,7 +215,7 @@ export function describeChange(e, item) {
   if (e.kind === "created") return "created the item";
   const pretty = (f, v) => {
     if (f === "status") return STATUS_LABEL[v] || v;
-    if (f === "priority") return `P${v}`;
+    if (f === "priority") return PRIORITY_LABEL[v] || `P${v}`;
     if (f === "assignee_id" || f === "approval_requested_by") return whoIs(v, e, item);
     if (v === null || v === undefined) return "nothing";
     return String(v).length > 40 ? `${String(v).slice(0, 40)}...` : String(v);
@@ -147,4 +233,11 @@ export function DemoBanner() {
       night at 04:00 Singapore time.
     </div>
   );
+}
+
+// A fixed swatch per team, from the chart palette's categorical order, so a team keeps its colour.
+const TEAM_SWATCHES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"];
+export function teamSwatch(name) {
+  const h = [...(name || "")].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 3);
+  return TEAM_SWATCHES[h % TEAM_SWATCHES.length];
 }
