@@ -16,16 +16,34 @@ log = logging.getLogger("app")
 async def lifespan(app: FastAPI):
     db.pool.open()
     db.migrate()
-    if (
-        os.environ.get("SEED_ON_BOOT", "true").lower() in ("1", "true", "yes")
-        and db.seed_if_empty()
-    ):
+    # Off unless switched on: a real deployment must never fill itself with demo people.
+    if auth.flag("SEED_ON_BOOT") and db.seed_if_empty():
         log.info("seeded the demo dataset into an empty database")
     yield
     db.pool.close()
 
 
 app = FastAPI(title="Newtonite Ops", lifespan=lifespan)
+
+ALLOWED_ORIGINS = {
+    o.strip()
+    for o in os.environ.get("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+    if o.strip()
+}
+
+
+@app.middleware("http")
+async def refuse_cross_site_writes(request: Request, call_next):
+    """Browsers send Origin on every cross-site write. One from a page that is not ours is refused,
+    so another site cannot make a signed-in user's browser change things. Requests without Origin
+    (curl, scripts) carry no ambient cookie risk and pass."""
+    if request.method not in ("GET", "HEAD", "OPTIONS"):
+        origin = request.headers.get("origin")
+        if origin is not None and origin not in ALLOWED_ORIGINS:
+            return JSONResponse({"detail": "cross-site request refused"}, 403)
+    return await call_next(request)
+
+
 app.include_router(auth.router)
 app.include_router(items.router)
 app.include_router(notifications.router)

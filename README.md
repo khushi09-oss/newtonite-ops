@@ -152,12 +152,27 @@ The reasoning behind each choice, and what was traded away, is in
 | `scripts/demo_race.py` | The three guarantees, shown against the running stack |
 | `docs/BUILD_PLAN.md` | The plan this was built to, step by step |
 
+## Settings
+
+Set in `.env` locally, or as environment variables wherever the API runs.
+
+| Setting | Local default in `.env.example` | In production |
+|---|---|---|
+| `SESSION_SECRET` | `change-me-locally` | A long random string. The API refuses to start without one. |
+| `DEV_LOGIN` | `true` | `false`. Sign in as anyone with no password; off unless switched on. |
+| `SEED_ON_BOOT` | `true` | `false`. Fills an empty database with demo people and items. |
+| `COOKIE_SECURE` | `false` | `true`, so the session cookie only travels over HTTPS. |
+| `ALLOWED_ORIGINS` | `http://localhost:5173` | The site's own URL. Writes from any other page are refused. |
+| `WRITE_LIMIT_PER_MINUTE` | `300` | Writes per user per minute before 429. |
+
 ## If something goes wrong
 
 - **A port is taken.** Ports 5173, 8000 and 5432 must be free. Stop whatever holds them, or
   change the left-hand port in `docker-compose.yml`.
 - **The web page does not load.** Give the web container its first-start minute. Watch it
   with `docker compose logs -f web`.
+- **Everything says 401 after an update.** Sessions moved to the database, so cookies from
+  before that change no longer work. Sign in again.
 - **Start from a clean dataset.** `docker compose down -v` drops the database. The next
   `docker compose up` seeds it again.
 

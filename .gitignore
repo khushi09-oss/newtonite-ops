@@ -10,3 +10,5 @@ web/dist/
 .DS_Store
 CLAUDE.md
 web/.vite/
+
+.vercel/

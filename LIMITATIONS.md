@@ -2,12 +2,12 @@
 
 Kept current with every PR. Each line says what is missing and why it was left out.
 
-- No real sign-on. Dev login against seeded users; the session cookie is signed but there is
-  no password, no SSO, no session revocation list.
-- The session cookie is not marked `Secure`, because the stack serves plain HTTP on
-  localhost. Behind HTTPS it should be. Cross-site requests are blocked by `SameSite=Lax`
-  rather than a CSRF token.
-- No rate limiting on any route.
+- No real sign-on yet. Local development signs in as any seeded user with no password; that
+  sign-in is off unless `DEV_LOGIN=true`, so a deployment never offers it by accident.
+- Cross-site writes are refused by checking the `Origin` header against `ALLOWED_ORIGINS`,
+  together with a `SameSite=Lax` cookie. There is no separate CSRF token.
+- Rate limits are fixed windows per user (writes) counted in Postgres. A burst at the edge of
+  two windows can briefly allow up to twice the limit.
 - No frontend unit tests. The UI's risky behaviour is the conflict across two sessions, which
   was checked by hand in two browsers; the server rules it depends on are tested.
 - The web app runs on the Vite dev server inside compose. There is no production build or

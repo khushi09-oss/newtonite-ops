@@ -235,3 +235,24 @@ item, inbox and notification count refetch every 15 seconds.
 **Trade-off.** For about 100 milliseconds a user can see a result that the server then rolls
 back. That is the honest cost of feeling fast; the strip explains the rollback. Polling is
 simple and survives restarts, at the price of up to 15 seconds of staleness between writes.
+
+## D-15 Sessions live in the database, demo conveniences are off by default, and limits are shared
+
+**Situation.** The app is going to real users on a public URL, on a platform that runs many
+short-lived instances. The cookie held a signed user id, so signing out only asked the browser
+to forget it (which an HttpOnly cookie cannot do from JavaScript), and nothing could end a
+session early. Dev sign-in and the demo seed were on unless switched off.
+
+**Decision.** The cookie now carries a signed id for a row in `sessions`. `current_user` accepts
+it only while the session is unrevoked, unexpired and its user is not deactivated, so sign-out
+and deactivation take effect on the next request. Dev sign-in and the seed are off unless a
+setting turns them on, and `.env.example` turns them on for local work. Writes from a page
+whose `Origin` is not ours are refused before any route runs. Writes are rate limited per user
+in `current_user`, so no route can forget it, with the counters in Postgres so every instance
+shares them. Migrations take a transaction-scoped advisory lock, so instances that start
+together cannot race, and the lock works through a connection pooler.
+
+**Trade-off.** One extra indexed lookup and one counter upsert per request. Accepted because a
+cookie that cannot be revoked and a limit each instance counts separately are both false
+security. Rejected in-memory rate limits because on many instances each would allow the full
+limit.

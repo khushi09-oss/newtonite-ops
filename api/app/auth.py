@@ -1,4 +1,5 @@
-"""Dev login and the session cookie. No passwords: the seeded users are the whole user base."""
+"""Sessions and sign-in. The cookie carries a signed session id; the session row decides whether it
+still works, so signing out or deactivating a user takes effect on the next request."""
 
 import os
 
@@ -6,51 +7,106 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from pydantic import BaseModel
 
-from app import db
+from app import db, limits
+
+
+def flag(name: str, default: str = "false") -> bool:
+    return os.environ.get(name, default).lower() in ("1", "true", "yes")
+
 
 COOKIE = "session"
 MAX_AGE = 7 * 24 * 3600
+# Off unless switched on: production never offers a passwordless sign-in by accident.
+DEV_LOGIN = flag("DEV_LOGIN")
+# On wherever the site is served over HTTPS; off for plain-HTTP localhost.
+COOKIE_SECURE = flag("COOKIE_SECURE")
+WRITE_LIMIT_PER_MINUTE = int(os.environ.get("WRITE_LIMIT_PER_MINUTE", "300"))
+WRITE_WINDOW_SECONDS = 60
 # Fails loudly at import when SESSION_SECRET is unset, rather than signing with a guessable default.
 signer = URLSafeTimedSerializer(os.environ["SESSION_SECRET"], salt="session")
 
 router = APIRouter()
+USER_COLS = "u.id, u.email, u.name, u.is_admin"
+
+
+def issue_session(conn, user_id) -> str:
+    """Create a session row and return the signed cookie value for it."""
+    sid = conn.execute(
+        "insert into sessions (user_id, expires_at) values (%s, now() + make_interval(secs => %s))"
+        " returning id",
+        (user_id, MAX_AGE),
+    ).fetchone()["id"]
+    return signer.dumps(str(sid))
+
+
+def set_session_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        COOKIE, token, max_age=MAX_AGE, httponly=True, samesite="lax", secure=COOKIE_SECURE
+    )
+
+
+def session_id(request: Request) -> str:
+    token = request.cookies.get(COOKIE)
+    if not token:
+        raise HTTPException(401, "not signed in")
+    try:
+        return signer.loads(token, max_age=MAX_AGE)
+    except BadSignature:  # covers SignatureExpired too
+        raise HTTPException(401, "session is invalid or expired")
+
+
+def current_user(request: Request) -> dict:
+    """The signed-in user, or 401. Every route that needs an actor depends on this. Writes are also
+    rate limited per user here, so no mutating route can forget it."""
+    sid = session_id(request)
+    with db.pool.connection() as conn:
+        user = conn.execute(
+            f"select {USER_COLS} from sessions s join users u on u.id = s.user_id"
+            " where s.id = %s and s.revoked_at is null and s.expires_at > now()"
+            " and u.deactivated_at is null",
+            (sid,),
+        ).fetchone()
+    if user is None:
+        raise HTTPException(401, "session has ended; sign in again")
+    if request.method not in ("GET", "HEAD", "OPTIONS"):
+        limits.check(f"write:{user['id']}", WRITE_LIMIT_PER_MINUTE, WRITE_WINDOW_SECONDS)
+    return user
 
 
 class Login(BaseModel):
     email: str
 
 
-def current_user(request: Request) -> dict:
-    """The signed-in user, or 401. Used as a dependency by every route that needs an actor."""
-    token = request.cookies.get(COOKIE)
-    if not token:
-        raise HTTPException(401, "not signed in")
-    try:
-        user_id = signer.loads(token, max_age=MAX_AGE)
-    except BadSignature:  # covers SignatureExpired too
-        raise HTTPException(401, "session is invalid or expired")
-    with db.pool.connection() as conn:
-        user = conn.execute(
-            "select id, email, name, is_admin from users where id = %s", (user_id,)
-        ).fetchone()
-    if user is None:
-        raise HTTPException(401, "session user no longer exists")
-    return user
-
-
 @router.post("/auth/dev-login")
 def dev_login(body: Login, response: Response):
+    """Sign in as any seeded user with no password. Local development and tests only."""
+    if not DEV_LOGIN:
+        raise HTTPException(404, "Not Found")
     with db.pool.connection() as conn:
         user = conn.execute(
-            "select id, email, name, is_admin from users where email = %s",
+            f"select {USER_COLS} from users u where u.email = %s and u.deactivated_at is null",
             (body.email.strip().lower(),),
         ).fetchone()
-    if user is None:
-        raise HTTPException(404, "no seeded user with that email")
-    response.set_cookie(
-        COOKIE, signer.dumps(str(user["id"])), max_age=MAX_AGE, httponly=True, samesite="lax"
-    )
+        if user is None:
+            raise HTTPException(404, "no seeded user with that email")
+        set_session_cookie(response, issue_session(conn, user["id"]))
     return user
+
+
+@router.post("/auth/logout", status_code=204)
+def logout(request: Request, response: Response):
+    """Revoke the session server-side. The cookie is HttpOnly, so the browser cannot clear it itself."""
+    try:
+        sid = session_id(request)
+    except HTTPException:
+        sid = None
+    if sid:
+        with db.pool.connection() as conn:
+            conn.execute(
+                "update sessions set revoked_at = now() where id = %s and revoked_at is null",
+                (sid,),
+            )
+    response.delete_cookie(COOKIE, httponly=True, samesite="lax", secure=COOKIE_SECURE)
 
 
 @router.get("/me")
