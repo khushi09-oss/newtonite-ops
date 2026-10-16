@@ -18,11 +18,13 @@ select id, lower(first_name || '.' || last_name || '@newtonite.dev'), first_name
   from seed_users;
 
 create temp table seed_teams on commit drop as
-select n, gen_random_uuid() as id, team_names[n] as name
+select n, gen_random_uuid() as id, team_names[n] as name, team_keys[n] as key
   from generate_series(1, 8) as n,
-       (select array['Payments', 'Compliance', 'Support', 'Incidents', 'Onboarding', 'Risk', 'Platform', 'Billing'] as team_names) as t;
+       (select array['Payments', 'Compliance', 'Support', 'Incidents', 'Onboarding', 'Risk', 'Platform', 'Billing'] as team_names,
+               array['PAY', 'CMP', 'SUP', 'INC', 'ONB', 'RSK', 'PLT', 'BIL'] as team_keys) as t;
 
-insert into teams (id, name) select id, name from seed_teams;
+-- Teams take turns, so each one ends with 20,000 / 8 items and its counter there.
+insert into teams (id, name, key, next_number) select id, name, key, 2500 from seed_teams;
 
 -- User n is lead of team ((n-1) % 8)+1 when n <= 8, otherwise a member of it, and a viewer of a second team.
 -- Each team ends up with 1 lead, 4 members, 5 viewers.
@@ -85,9 +87,9 @@ select s.i, s.id, s.team_n, s.kind_n, t.id as team_id,
   join seed_users assignee on assignee.n = s.team_n + 8 * s.r_assignee
   join seed_users lead on lead.n = s.team_n;
 
-insert into work_items (id, team_id, kind, title, description, status, priority, reporter_id, assignee_id,
+insert into work_items (id, team_id, number, kind, title, description, status, priority, reporter_id, assignee_id,
                         approval_requested_by, due_at, version, created_at, updated_at, last_activity_at)
-select id, team_id, kind,
+select id, team_id, (i - 1) / 8 + 1, kind,
        -- One template per kind and round, filled with a company, an order number or a week, so the
        -- titles read like real requests and still repeat enough for search to find each phrase.
        replace(replace(replace(replace(

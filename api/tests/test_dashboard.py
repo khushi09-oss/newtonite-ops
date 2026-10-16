@@ -79,10 +79,55 @@ def test_dashboard_queries_use_indexes(login):
                 assert f"Seq Scan on {table}" not in plan, (name, plan)
 
 
-def test_search_by_key_finds_the_item(client, login, team_id):
+def test_search_by_key_finds_the_item_on_its_own_team(client, login, team_id):
     login("dev.mehta@newtonite.dev")
     item = create(client, team_id("Risk"), f"Find me by key {uuid4()}")
-    assert isinstance(item["number"], int)
-    for q in (f"OPS-{item['number']}", f"ops-{item['number']}", str(item["number"])):
+    assert item["team_key"] == "RSK" and isinstance(item["number"], int)
+    for q in (f"RSK-{item['number']}", f"rsk-{item['number']}", f" RSK-{item['number']} "):
         found = client.get("/items", params={"q": q}).json()["items"]
         assert [i["id"] for i in found] == [item["id"]], q
+    bare = client.get("/items", params={"q": str(item["number"])}).json()["items"]
+    assert item["id"] in [i["id"] for i in bare]
+
+
+def test_the_same_number_on_two_teams_is_two_items(client, login):
+    # An admin sees every team, and every team has a seeded item 5.
+    login("ava.okafor@newtonite.dev")
+    bare = client.get("/items", params={"q": "5"}).json()["items"]
+    assert {i["team_key"] for i in bare} >= {"BIL", "CMP", "INC", "ONB", "PAY", "PLT", "RSK", "SUP"}
+    keyed = client.get("/items", params={"q": "CMP-5"}).json()["items"]
+    assert [(i["team_key"], i["number"]) for i in keyed] == [("CMP", 5)]
+
+
+def test_keys_are_gapless_per_team(client):
+    """Every team's counter equals its highest key, so no number was skipped or handed out twice."""
+    with db.pool.connection() as conn:
+        bad = conn.execute(
+            "select t.key, t.next_number, max(w.number) as top, count(w.id) as n"
+            " from teams t left join work_items w on w.team_id = t.id"
+            " group by t.id having t.next_number <> coalesce(max(w.number), 0)"
+            " or count(w.id) <> coalesce(max(w.number), 0)"
+        ).fetchall()
+    assert bad == []
+
+
+def test_overdue_filter_lists_only_open_work_past_due(client, login, team_id):
+    login("dev.mehta@newtonite.dev")
+    late = create(client, team_id("Risk"), f"Overdue filter {uuid4()}")
+    with db.pool.connection() as conn:
+        conn.execute(
+            "update work_items set due_at = now() - interval '1 day' where id = %s", (late["id"],)
+        )
+    body = client.get(
+        "/items", params={"overdue": "true", "team": str(team_id("Risk")), "limit": 100}
+    ).json()
+    assert body["items"]
+    now = datetime.now(UTC)
+    for i in body["items"]:
+        assert (
+            i["status"] not in ("resolved", "closed") and datetime.fromisoformat(i["due_at"]) < now
+        )
+    found = client.get("/items", params={"overdue": "true", "q": f"RSK-{late['number']}"}).json()[
+        "items"
+    ]
+    assert [i["id"] for i in found] == [late["id"]]

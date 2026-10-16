@@ -38,7 +38,9 @@ Kept current with every PR. Each line says what is missing and why it was left o
 - The dashboard counts are computed on every request rather than kept as running totals. Each
   is an index scan, so they stay quick at this size; at millions of items they would move to
   counters updated in `apply_change()`.
-- Item keys (`OPS-1234`) are one sequence for the whole company, not per team.
+- Item keys count per team (`RSK-1204`), so creating items on one team takes turns on that team's
+  counter row. That is invisible at the pace people type; a bulk import into one team would queue.
+- A team's code is set when the team is created and cannot be edited yet.
 - Full-text search is Postgres `tsvector` with English stemming. No fuzzy matching, no
   relevance tuning.
 - A background job that fails eight times stops and waits for an admin to retry it from the Admin

@@ -1,6 +1,8 @@
 """People and teams, for admins only. Every action is recorded in admin_events. Non-admins get 404,
 the same answer the rest of the API gives outsiders."""
 
+import itertools
+import re
 from typing import Literal
 from uuid import UUID
 
@@ -158,7 +160,7 @@ def change_user(user_id: UUID, body: UserChange, admin: dict = Depends(require_a
 def list_teams(admin: dict = Depends(require_admin)):
     with db.pool.connection() as conn:
         rows = conn.execute(
-            "select t.id, t.name, count(m.user_id) as members from teams t"
+            "select t.id, t.name, t.key, count(m.user_id) as members from teams t"
             " left join team_members m on m.team_id = t.id group by t.id order by t.name"
             " limit %s",
             (LIST_CAP + 1,),
@@ -170,15 +172,34 @@ class NewTeam(BaseModel):
     name: str = Field(min_length=1, max_length=80)
 
 
+def team_key(conn, name: str) -> str:
+    """The first three letters of the name, then RSK2, RSK3 and on if that code is taken."""
+    base = (re.sub("[^A-Za-z]", "", name).upper() + "XXX")[:3]
+    taken = {
+        r["key"] for r in conn.execute("select key from teams where key like %s", (base + "%",))
+    }
+    return next(
+        k
+        for k in itertools.chain([base], (f"{base}{n}" for n in itertools.count(2)))
+        if k not in taken
+    )
+
+
 @router.post("/teams", status_code=201)
 def create_team(body: NewTeam, admin: dict = Depends(require_admin)):
+    name = body.name.strip()
     with db.pool.connection() as conn, conn.transaction():
         try:
             team = conn.execute(
-                "insert into teams (name) values (%s) returning id, name", (body.name.strip(),)
+                "insert into teams (name, key) values (%s, %s) returning id, name, key",
+                (name, team_key(conn, name)),
             ).fetchone()
-        except UniqueViolation:
-            raise HTTPException(409, f"A team called {body.name.strip()} already exists")
+        except UniqueViolation as e:
+            if e.diag.constraint_name == "teams_key_idx":  # two admins took the same code at once
+                raise HTTPException(
+                    409, "Another team was just created with the same code. Try again."
+                )
+            raise HTTPException(409, f"A team called {name} already exists")
         record(conn, admin, "team_created", team_id=team["id"], name=team["name"])
         return {**team, "members": 0}
 

@@ -28,7 +28,7 @@ COLS = (
     " w.approval_requested_by, w.due_at, w.version, w.created_at, w.updated_at, w.last_activity_at,"
     " w.number"
 )
-NAMES = " t.name as team_name, r.name as reporter_name, a.name as assignee_name"
+NAMES = " t.name as team_name, t.key as team_key, r.name as reporter_name, a.name as assignee_name"
 FROM = (
     " from work_items w join teams t on t.id = w.team_id join users r on r.id = w.reporter_id"
     " left join users a on a.id = w.assignee_id"
@@ -108,6 +108,14 @@ def apply_change(
     with the row as it is now. expected_version None means "whatever it is": the row is locked and bumped,
     which is how comments add history without the client holding a version."""
     if item_id is None:
+        # The team row lock makes keys gapless and in order; creates on one team queue behind it.
+        team = conn.execute(
+            "update teams set next_number = next_number + 1 where id = %s returning next_number",
+            (changes["team_id"],),
+        ).fetchone()
+        if team is None:
+            raise HTTPException(404, "team not found")
+        changes = {**changes, "number": team["next_number"]}
         cols = ", ".join(changes)
         row = conn.execute(
             f"insert into work_items ({cols}) values ({', '.join(['%s'] * len(changes))}) returning *",
@@ -232,6 +240,7 @@ def list_query(
     q=None,
     cursor=None,
     limit: int = 50,
+    overdue: bool = False,
 ) -> tuple[str, list]:
     """Built per request so each filter is a real constant to the planner and the composite index is used."""
     where, params = [], []
@@ -249,10 +258,16 @@ def list_query(
         if val is not None:
             where.append(f"{col} = %s")
             params.append(val)
-    key = re.fullmatch(r"\s*(?:ops-)?(\d+)\s*", q or "", re.IGNORECASE)
-    if key:  # "OPS-1234" or "1234" finds that item by its key, on the unique index
+    if overdue:  # matches the partial index on (team_id, due_at) for open work
+        where.append("w.status not in ('resolved', 'closed') and w.due_at < now()")
+    key = re.fullmatch(r"\s*(?:([a-z]{2,6})-)?(\d+)\s*", q or "", re.IGNORECASE)
+    # "RSK-1204" finds that item on the (team_id, number) index; "1204" finds it on every team.
+    if key:
         where.append("w.number = %s")
-        params.append(int(key.group(1)))
+        params.append(int(key.group(2)))
+        if key.group(1):
+            where.append("t.key = %s")
+            params.append(key.group(1).upper())
     elif q:
         where.append("w.search @@ websearch_to_tsquery('english', %s)")
         params.append(q)
@@ -280,8 +295,9 @@ def list_items(
     q: str | None = None,
     cursor: str | None = None,
     limit: int = Query(50, ge=1, le=LIST_CAP),
+    overdue: bool = False,
 ):
-    sql, params = list_query(user, team, status, priority, assignee, q, cursor, limit)
+    sql, params = list_query(user, team, status, priority, assignee, q, cursor, limit, overdue)
     with db.pool.connection() as conn:
         rows = conn.execute(sql, params).fetchall()
     capped = len(rows) > limit

@@ -5,7 +5,7 @@ import { api, newKey } from "../api";
 import { KIND_LABEL, PRIORITY_LABEL, STATUS_LABEL } from "../ui";
 import { ItemRow } from "./Inbox";
 
-const FILTERS = ["team", "status", "priority", "assignee", "q"];
+const FILTERS = ["team", "status", "priority", "assignee", "overdue", "q"];
 
 export default function Items() {
   const me = useOutletContext();
@@ -65,7 +65,7 @@ export default function Items() {
       <div className="toolbar">
         <input
           type="search"
-          placeholder="Search titles and descriptions"
+          placeholder="Search, or type a key like RSK-12"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -100,6 +100,14 @@ export default function Items() {
             onChange={(e) => setFilter("assignee", e.target.checked ? me.id : "")}
           />
           Mine
+        </label>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={filters.overdue === "true"}
+            onChange={(e) => setFilter("overdue", e.target.checked ? "true" : "")}
+          />
+          Overdue
         </label>
       </div>
       {list.isPending && <div className="page-loading">Loading items</div>}
