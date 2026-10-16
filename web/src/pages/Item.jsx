@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useOutletContext, useParams } from "react-router-dom";
 import { api, newKey } from "../api";
+import { pollEvery, useLiveConnected } from "../live";
 import {
   KIND_LABEL,
   PRIORITY_LABEL,
@@ -21,7 +22,8 @@ export default function Item() {
   const me = useOutletContext();
   const qc = useQueryClient();
   const key = ["item", id];
-  const item = useQuery({ queryKey: key, queryFn: () => api(`/items/${id}`), refetchInterval: 15000 });
+  const live = useLiveConnected();
+  const item = useQuery({ queryKey: key, queryFn: () => api(`/items/${id}`), refetchInterval: pollEvery(live) });
 
   const [conflict, setConflict] = useState(null); // {current, events, vars}
   const [problem, setProblem] = useState(null);

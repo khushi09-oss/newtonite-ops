@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useCallback } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BrowserRouter, Link, Navigate, NavLink, Outlet, Route, Routes, useNavigate } from "react-router-dom";
+import { BrowserRouter, Link, Navigate, NavLink, Outlet, Route, Routes, useMatch, useNavigate } from "react-router-dom";
 import { api } from "./api";
 import { DemoBanner } from "./ui";
+import { LiveUpdates, pollEvery, useLiveConnected } from "./live";
 import Login from "./pages/Login";
 import Inbox from "./pages/Inbox";
 import Items from "./pages/Items";
@@ -19,17 +20,31 @@ const queryClient = new QueryClient({
 function Shell() {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const itemMatch = useMatch("/items/:id");
+  const onEnded = useCallback(
+    (reason) => qc.invalidateQueries({ queryKey: reason === "session" ? ["me"] : ["item"] }),
+    [qc],
+  );
   const me = useQuery({ queryKey: ["me"], queryFn: () => api("/me") });
   const config = useQuery({ queryKey: ["auth-config"], queryFn: () => api("/auth/config"), staleTime: Infinity });
-  const unread = useQuery({
-    queryKey: ["notifications", "unread"],
-    queryFn: () => api("/notifications?unread=true"),
-    refetchInterval: 15000,
-    enabled: me.isSuccess,
-  });
 
   if (me.isPending) return <div className="page-loading">Loading</div>;
   if (me.isError) return <Navigate to="/login" replace />;
+
+  return (
+    <LiveUpdates itemId={itemMatch?.params.id} onEnded={onEnded}>
+      <ShellBody me={me} config={config} qc={qc} navigate={navigate} />
+    </LiveUpdates>
+  );
+}
+
+function ShellBody({ me, config, qc, navigate }) {
+  const live = useLiveConnected();
+  const unread = useQuery({
+    queryKey: ["notifications", "unread"],
+    queryFn: () => api("/notifications?unread=true"),
+    refetchInterval: pollEvery(live),
+  });
 
   const count = unread.data ? unread.data.notifications.length : 0;
   const signOut = async () => {
