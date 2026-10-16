@@ -22,6 +22,20 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  worker:
+    build: ./api
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ops}:${POSTGRES_PASSWORD:-ops}@postgres:5432/${POSTGRES_DB:-ops}
+    depends_on:
+      api: { condition: service_healthy }
+    command: python worker.py
 
 volumes:
   pgdata:

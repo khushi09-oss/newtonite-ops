@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
-from app import auth, db, items
+from app import auth, db, items, notifications
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("app")
@@ -28,6 +28,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Newtonite Ops", lifespan=lifespan)
 app.include_router(auth.router)
 app.include_router(items.router)
+app.include_router(notifications.router)
 
 
 @app.exception_handler(items.Conflict)

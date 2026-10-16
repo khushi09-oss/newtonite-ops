@@ -22,6 +22,9 @@ docker compose up --build
 | Web | http://localhost:5173 |
 | Postgres | localhost:5432 |
 
+A worker container polls the outbox and turns item events into notifications. Scale it with
+`docker compose up -d --scale worker=2`; the rows are locked per worker, never shared.
+
 The API runs its migrations on boot and seeds a demo dataset (users, teams, 20,000 work
 items, their history) when the database is empty. Sign in with any seeded user from the
 login screen; there is no password (see Assumptions). From the shell:
@@ -53,6 +56,8 @@ Postgres row locking.
 | `api/migrations/` | Plain SQL, applied in order on boot |
 | `api/seed.sql` | The demo dataset, generated inside Postgres on first boot |
 | `api/worker.py` | The outbox worker: notifications, retries, dead-lettering |
+| `api/app/idempotency.py` | `Idempotency-Key` handling: stored responses, replay, mismatch refusal |
+| `api/app/notifications.py` | Watchers, the notification handler, the notification routes |
 | `api/tests/` | Tests named after the risk they guard |
 | `web/` | React + Vite frontend |
 | `ENGINEERING_DECISIONS.md` | The six decisions and their trade-offs |

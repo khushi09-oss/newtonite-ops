@@ -7,12 +7,13 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Field
 
 from app import db
 from app.auth import current_user
+from app.idempotency import idempotent
 
 router = APIRouter()
 
@@ -132,9 +133,9 @@ def apply_change(
             raise Conflict(
                 conn.execute("select * from work_items where id = %s", (item_id,)).fetchone()
             )
-    conn.execute(
+    event_id = conn.execute(
         "insert into work_item_events (item_id, seq, actor_id, kind, before, after, note)"
-        " values (%s, %s, %s, %s, %s, %s, %s)",
+        " values (%s, %s, %s, %s, %s, %s, %s) returning id",
         (
             row["id"],
             row["version"],
@@ -143,6 +144,15 @@ def apply_change(
             _jsonb({k: before[k] for k in changes}) if before else None,
             _jsonb({k: row[k] for k in changes}),
             note,
+        ),
+    ).fetchone()["id"]
+    # Same transaction as the row and the event: the notification work is enqueued or nothing is (D-04).
+    conn.execute(
+        "insert into outbox (kind, payload) values ('item_event', %s)",
+        (
+            _jsonb(
+                {"item_id": row["id"], "event_id": event_id, "actor_id": actor["id"], "kind": kind}
+            ),
         ),
     )
     return row
@@ -304,8 +314,12 @@ class CreateItem(BaseModel):
 
 
 @router.post("/items", status_code=201)
-def create_item(body: CreateItem, user: dict = Depends(current_user)):
-    with db.pool.connection() as conn, conn.transaction():
+def create_item(
+    body: CreateItem,
+    user: dict = Depends(current_user),
+    key: str | None = Header(None, alias="Idempotency-Key"),
+):
+    def run():
         membership = conn.execute(
             "select role from team_members where team_id = %s and user_id = %s",
             (body.team_id, user["id"]),
@@ -316,6 +330,9 @@ def create_item(body: CreateItem, user: dict = Depends(current_user)):
             raise HTTPException(403, "viewers cannot create items")
         row = apply_change(conn, user, "created", {**body.model_dump(), "reporter_id": user["id"]})
         return _respond(conn, user, row["id"])
+
+    with db.pool.connection() as conn, conn.transaction():
+        return idempotent(conn, user, key, "create", body, run, status=201, required=True)
 
 
 class Versioned(BaseModel):
@@ -395,8 +412,13 @@ class Transition(Versioned):
 
 
 @router.post("/items/{item_id}/transition")
-def transition_item(item_id: UUID, body: Transition, user: dict = Depends(current_user)):
-    with db.pool.connection() as conn, conn.transaction():
+def transition_item(
+    item_id: UUID,
+    body: Transition,
+    user: dict = Depends(current_user),
+    key: str | None = Header(None, alias="Idempotency-Key"),
+):
+    def run():
         item = _may(conn, user, item_id, f"transition:{body.to}", body.version)
         if (item["status"], body.to) in NOTE_REQUIRED and not (body.note or "").strip():
             raise HTTPException(422, "a note is required for this transition")
@@ -408,14 +430,25 @@ def transition_item(item_id: UUID, body: Transition, user: dict = Depends(curren
         apply_change(conn, user, "status", changes, item_id, body.version, note=body.note)
         return _respond(conn, user, item_id)
 
+    with db.pool.connection() as conn, conn.transaction():
+        return idempotent(conn, user, key, f"transition:{item_id}", body, run)
+
 
 class Comment(BaseModel):
     body: str = Field(min_length=1, max_length=5000)
 
 
 @router.post("/items/{item_id}/comments", status_code=201)
-def comment_item(item_id: UUID, body: Comment, user: dict = Depends(current_user)):
-    with db.pool.connection() as conn, conn.transaction():
+def comment_item(
+    item_id: UUID,
+    body: Comment,
+    user: dict = Depends(current_user),
+    key: str | None = Header(None, alias="Idempotency-Key"),
+):
+    def run():
         _may(conn, user, item_id, "comment")
         apply_change(conn, user, "comment", {}, item_id, note=body.body)
         return _respond(conn, user, item_id)
+
+    with db.pool.connection() as conn, conn.transaction():
+        return idempotent(conn, user, key, f"comment:{item_id}", body, run, status=201)
