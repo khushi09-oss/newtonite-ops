@@ -16,6 +16,19 @@ use, each enforced by the server and each covered by a test named after the risk
 | A notification is lost or doubled | Queued in the same transaction, retried, dead-lettered, unique per user and event | Transactional outbox and worker (D-04, D-11) |
 | An outsider probes for items | 404, the same answer as for an id that does not exist | Team membership joined inside every query (D-05) |
 
+## Try the live demo
+
+**https://newtonite-ops-vert.vercel.app**
+
+Sign in with any Google account, which puts you on the Support team, or pick one of the demo
+people on the sign-in page to see other roles: the admin, the Risk lead, a Risk member, and a
+Compliance lead who can only view Risk. The data is made up, shared by everyone, and reset every
+night at 04:00 Singapore time. Open the site in two browsers as two different people to see the
+conflict handling below.
+
+The demo runs with `DEMO_MODE=true`. Without it, the same code is invite-only: Google sign-in
+admits only people an admin has invited, and there is no passwordless sign-in.
+
 ## Run it
 
 You need Docker with Compose. Python 3 is optional, for the demo script.
@@ -187,6 +200,7 @@ Set in `.env` locally, or as environment variables wherever the API runs.
 | `ALLOWED_ORIGINS` | `http://localhost:5173` | The site's own URL. Writes from any other page are refused. |
 | `WRITE_LIMIT_PER_MINUTE` | `300` | Writes per user per minute before 429. |
 | `DRAIN_OUTBOX_IN_REQUESTS` | not set | `true` on Vercel, where no worker process runs. |
+| `DEMO_MODE` | not set | `true` only for a public demo: any Google account gets in, demo accounts are protected, data resets nightly. |
 | `CRON_SECRET` | not set | A random string; the daily sweep must present it. |
 | `DB_POOL_MAX` | `20` | Connections per API instance. `5` on Vercel. |
 | `GOOGLE_CLIENT_ID` | empty, so Google sign-in is hidden | The OAuth client ID from Google Cloud. |

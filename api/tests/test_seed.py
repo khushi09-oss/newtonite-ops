@@ -17,7 +17,7 @@ def test_seed_runs_once_and_never_duplicates(client):
     ]
     with db.pool.connection() as conn:
         c = conn.execute(
-            "select (select count(*) from users where email like '%%@newtonite.dev') as users,"
+            r"select (select count(*) from users where email ~ '^[a-z]+\.[a-z]+@newtonite\.dev$') as users,"
             " (select count(*) from teams where name = any(%s)) as teams,"
             " (select count(*) from work_items) as items, (select count(*) from work_item_events) as events",
             (seeded_teams,),

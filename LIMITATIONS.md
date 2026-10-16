@@ -2,6 +2,11 @@
 
 Kept current with every PR. Each line says what is missing and why it was left out.
 
+- The live site is a public demo. Anyone can sign in as any demo person, including the admin, and
+  everyone shares the same data until the nightly reset. It shows the system; it is not a place for
+  real work. A real deployment leaves `DEMO_MODE` and `DEV_LOGIN` off.
+- In demo mode the nightly reset empties every table, history included. Outside demo mode history is
+  never deleted.
 - Sign-in is Google only. There is no email-and-password sign-in and no other provider. A
   user without a Google account for their invited email cannot get in.
 - Local development signs in as any seeded user with no password. That sign-in is off unless

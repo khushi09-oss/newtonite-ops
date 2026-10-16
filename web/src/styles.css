@@ -433,6 +433,18 @@ textarea {
   border-color: var(--accent);
   color: var(--accent);
 }
+.demo-banner {
+  background: var(--amber-bg);
+  border-bottom: 1px solid var(--amber-line);
+  color: var(--amber-ink);
+  padding: 8px 36px;
+  font-size: 13px;
+}
+.login-card .demo-banner {
+  border: 1px solid var(--amber-line);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+}
 .google-slot {
   min-height: 44px;
 }
