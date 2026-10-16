@@ -85,6 +85,7 @@ POST /items/{id}/watch | DELETE /items/{id}/watch
 GET  /inbox                                       four buckets, each capped at 50
 GET  /notifications?unread=1
 POST /notifications/{id}/read
+POST /notifications/read                          {up_to}                marks all up to that id
 GET  /health
 ```
 

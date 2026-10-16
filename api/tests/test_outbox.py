@@ -111,6 +111,46 @@ def test_worker_delivers_to_watcher_and_the_list_shows_it(client, login, team_id
     assert not [n for n in unread["notifications"] if n["id"] == mine[0]["id"]]
 
 
+def deliver(user_id, event_id):
+    with db.pool.connection() as conn:
+        conn.execute(
+            "insert into notifications (user_id, event_id) values (%s, %s) on conflict do nothing",
+            (user_id, event_id),
+        )
+        return conn.execute(
+            "select id from notifications where user_id = %s and event_id = %s", (user_id, event_id)
+        ).fetchone()["id"]
+
+
+def unread_ids(client) -> set[int]:
+    r = client.get("/notifications", params={"unread": True})
+    return {n["id"] for n in r.json()["notifications"]}
+
+
+def test_mark_all_read_leaves_what_arrived_after_the_page_loaded(client, login, team_id):
+    dev = login("dev.mehta@newtonite.dev")
+    item = make_item(client, team_id("Risk"), "read all boundary")
+    events = [
+        client.post(f"/items/{item['id']}/comments", json={"body": f"note {i}"}).json()["events"][0]
+        for i in range(3)
+    ]
+    sql = "select id, seq from work_item_events where item_id = %s"
+    with db.pool.connection() as conn:
+        ids = {r["seq"]: r["id"] for r in conn.execute(sql, (item["id"],))}
+    seen = [deliver(dev["id"], ids[e["seq"]]) for e in events[:2]]
+    late = deliver(dev["id"], ids[events[2]["seq"]])
+
+    r = client.post("/notifications/read", json={"up_to": max(seen)})
+    assert r.status_code == 200 and r.json()["marked"] >= 2
+    assert late in unread_ids(client) and not unread_ids(client) & set(seen)
+
+    # Someone else's notifications are never touched.
+    login("finn.okafor@newtonite.dev")
+    client.post("/notifications/read", json={"up_to": late})
+    login("dev.mehta@newtonite.dev")
+    assert late in unread_ids(client)
+
+
 def test_outbox_dead_after_max_attempts():
     kind = f"test_explode_{uuid4().hex[:8]}"
     (rid,) = enqueue(kind)

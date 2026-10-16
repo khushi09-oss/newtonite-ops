@@ -3,6 +3,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 
 from app import db
 from app.auth import current_user
@@ -56,14 +57,31 @@ def list_notifications(
     with db.pool.connection() as conn:
         rows = conn.execute(
             "select n.id, n.read_at, n.created_at, e.kind, e.note, e.seq, e.before, e.after,"
-            " e.actor_id, e.item_id, w.title,"
+            " e.actor_id, e.item_id, w.title, w.number, t.key as team_key,"
             " u.name as actor_name"
             " from notifications n join work_item_events e on e.id = n.event_id"
-            " join work_items w on w.id = e.item_id join users u on u.id = e.actor_id"
+            " join work_items w on w.id = e.item_id join teams t on t.id = w.team_id"
+            " join users u on u.id = e.actor_id"
             f" where n.user_id = %s{cond} order by n.id desc limit %s",
             (user["id"], limit + 1),
         ).fetchall()
     return {"notifications": rows[:limit], "capped": len(rows) > limit}
+
+
+class ReadAll(BaseModel):
+    # The newest notification the reader has seen. One that arrives after it stays unread.
+    up_to: int
+
+
+@router.post("/notifications/read")
+def mark_all_read(body: ReadAll, user: dict = Depends(current_user)):
+    with db.pool.connection() as conn:
+        marked = conn.execute(
+            "update notifications set read_at = now()"
+            " where user_id = %s and id <= %s and read_at is null",
+            (user["id"], body.up_to),
+        ).rowcount
+    return {"marked": marked}
 
 
 @router.post("/notifications/{notification_id}/read", status_code=204)
