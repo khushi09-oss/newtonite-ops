@@ -167,6 +167,15 @@ Set in `.env` locally, or as environment variables wherever the API runs.
 | `GOOGLE_CLIENT_ID` | empty, so Google sign-in is hidden | The OAuth client ID from Google Cloud. |
 | `ADMIN_EMAILS` | empty | The first admins, comma separated. They become admins on their first Google sign-in. |
 
+### Inviting people
+
+Sign in as an admin and open **Admin** in the sidebar. Enter the person's Google email, their
+name, and a team and role, then choose **Invite**. Tell them to sign in with Google; nothing is
+emailed. From the same page you can create teams, change roles, remove people from a team, and
+deactivate or reactivate anyone. Removing or deactivating someone releases their open items,
+and each release appears in that item's history. Every admin change is listed at the bottom of
+the page and cannot be edited afterwards.
+
 ### Setting up Google sign-in
 
 1. In Google Cloud Console, open **APIs & Services**, then **OAuth consent screen**. Choose

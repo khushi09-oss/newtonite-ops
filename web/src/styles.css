@@ -408,6 +408,31 @@ textarea {
   font-size: 13px;
   color: var(--muted);
 }
+.admin-row {
+  grid-template-columns: minmax(0, 1fr) 220px 170px 190px;
+}
+.admin-actions {
+  display: flex;
+  gap: 14px;
+  justify-content: flex-end;
+}
+.tag {
+  margin-left: 8px;
+  font-size: 11px;
+  color: var(--muted);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 0 7px;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip-on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
 .google-slot {
   min-height: 44px;
 }
@@ -627,6 +652,17 @@ textarea {
   .row .status,
   .row-person {
     display: none;
+  }
+  /* Admin rows stack: who, their teams, their status, then the actions. */
+  .admin-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .admin-row .row-team {
+    display: block;
+  }
+  .admin-actions {
+    justify-content: flex-start;
   }
 }
 
