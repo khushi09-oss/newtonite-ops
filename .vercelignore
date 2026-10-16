@@ -1,0 +1,13 @@
+# The CLI uploads from disk, so anything local-only or secret must be listed here.
+CLAUDE.md
+.env
+.env.*
+!.env.example
+**/node_modules
+web/.vite
+web/dist
+**/__pycache__
+**/.pytest_cache
+api/tests
+scripts
+docs

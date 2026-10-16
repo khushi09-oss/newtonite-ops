@@ -1,26 +1,32 @@
 import logging
 import os
+import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
+from starlette.background import BackgroundTask
 
-from app import admin, auth, db, google, inbox, items, notifications
+from app import admin, auth, db, google, inbox, items, notifications, outbox
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("app")
 
 
+# Off unless switched on: a real deployment must never fill itself with demo people.
+SEED_ON_BOOT = auth.flag("SEED_ON_BOOT")
+# On where no worker process runs (Vercel): each instance drains the outbox after it answers.
+DRAIN_IN_REQUESTS = auth.flag("DRAIN_OUTBOX_IN_REQUESTS")
+CRON_SECRET = os.environ.get("CRON_SECRET", "")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    db.pool.open()
-    db.migrate()
-    # Off unless switched on: a real deployment must never fill itself with demo people.
-    if auth.flag("SEED_ON_BOOT") and db.seed_if_empty():
-        log.info("seeded the demo dataset into an empty database")
+    db.startup(SEED_ON_BOOT)
     yield
-    db.pool.close()
+    db.pool.close()  # only at process exit: a closed pool cannot be reopened
 
 
 app = FastAPI(title="Newtonite Ops", lifespan=lifespan)
@@ -29,7 +35,12 @@ ALLOWED_ORIGINS = {
     o.strip()
     for o in os.environ.get("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
     if o.strip()
+} | {  # on Vercel, the deployment's own URLs, so production and every preview accept themselves
+    f"https://{os.environ[v]}"
+    for v in ("VERCEL_URL", "VERCEL_BRANCH_URL", "VERCEL_PROJECT_PRODUCTION_URL")
+    if os.environ.get(v)
 }
+_last_drain = 0.0
 
 
 @app.middleware("http")
@@ -42,6 +53,19 @@ async def refuse_cross_site_writes(request: Request, call_next):
         if origin is not None and origin not in ALLOWED_ORIGINS:
             return JSONResponse({"detail": "cross-site request refused"}, 403)
     return await call_next(request)
+
+
+@app.middleware("http")
+async def start_and_drain(request: Request, call_next):
+    """Make sure this process has started, even if the platform skipped the startup hook. Where no
+    worker runs, drain one outbox batch after the response is sent, at most once a second here."""
+    global _last_drain
+    await run_in_threadpool(db.startup, SEED_ON_BOOT)
+    response = await call_next(request)
+    if DRAIN_IN_REQUESTS and response.background is None and time.monotonic() - _last_drain > 1:
+        _last_drain = time.monotonic()
+        response.background = BackgroundTask(outbox.drain)
+    return response
 
 
 app.include_router(auth.router)
@@ -68,3 +92,12 @@ def health():
     with db.pool.connection() as conn:
         conn.execute("select 1")
     return {"ok": True}
+
+
+@app.get("/internal/drain")
+def scheduled_drain(request: Request):
+    """The daily scheduled sweep, for jobs left waiting while nobody used the app. Vercel's scheduler
+    sends `Authorization: Bearer $CRON_SECRET`; anything else is refused."""
+    if not CRON_SECRET or request.headers.get("authorization") != f"Bearer {CRON_SECRET}":
+        raise HTTPException(404, "Not Found")
+    return {"processed": outbox.drain(max_batches=50)}

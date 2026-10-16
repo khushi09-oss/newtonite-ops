@@ -7,9 +7,9 @@ from uuid import uuid4
 
 from psycopg.types.json import Jsonb
 
-from app import db
+from app import db, main, outbox
 from app.notifications import notify
-from worker import MAX_ATTEMPTS, claim_batch, process_batch
+from app.outbox import MAX_ATTEMPTS, claim_batch, process_batch
 
 
 def enqueue(kind: str, n: int = 1) -> list[int]:
@@ -177,3 +177,41 @@ def test_outbox_rows_survive_a_crash_mid_batch():
     assert {outbox_row(i)["status"] for i in ids} == {"done"}
     with db.pool.connection() as conn:
         conn.execute("delete from outbox where kind = %s", (kind,))
+
+
+def test_api_drains_the_outbox_when_no_worker_runs(client, monkeypatch):
+    """Where no worker process exists (Vercel), a request's response triggers one drain."""
+    kind = f"test_drain_{uuid4().hex[:8]}"
+    (rid,) = enqueue(kind)
+    handled = []
+    monkeypatch.setattr(outbox, "HANDLERS", {kind: lambda conn, payload: handled.append(payload)})
+    monkeypatch.setattr(main, "DRAIN_IN_REQUESTS", True)
+    monkeypatch.setattr(main, "_last_drain", 0.0)
+    assert client.get("/health").status_code == 200  # the drain runs after this response is sent
+    assert handled == [{}] and outbox_row(rid)["status"] == "done"
+    with db.pool.connection() as conn:
+        conn.execute("delete from outbox where kind = %s", (kind,))
+
+
+def test_api_does_not_drain_when_a_worker_runs(client, monkeypatch):
+    kind = f"test_nodrain_{uuid4().hex[:8]}"
+    (rid,) = enqueue(kind)
+    monkeypatch.setattr(outbox, "HANDLERS", {kind: lambda conn, payload: None})
+    monkeypatch.setattr(main, "DRAIN_IN_REQUESTS", False)
+    monkeypatch.setattr(main, "_last_drain", 0.0)
+    client.get("/health")
+    assert outbox_row(rid)["status"] == "pending"
+    with db.pool.connection() as conn:
+        conn.execute("delete from outbox where kind = %s", (kind,))
+
+
+def test_scheduled_sweep_needs_the_secret(client, monkeypatch):
+    monkeypatch.setattr(main, "CRON_SECRET", "s3cret")
+    assert client.get("/internal/drain").status_code == 404
+    assert (
+        client.get("/internal/drain", headers={"Authorization": "Bearer wrong"}).status_code == 404
+    )
+    r = client.get("/internal/drain", headers={"Authorization": "Bearer s3cret"})
+    assert r.status_code == 200 and "processed" in r.json()
+    monkeypatch.setattr(main, "CRON_SECRET", "")
+    assert client.get("/internal/drain", headers={"Authorization": "Bearer "}).status_code == 404

@@ -14,8 +14,11 @@ Kept current with every PR. Each line says what is missing and why it was left o
   two windows can briefly allow up to twice the limit.
 - No frontend unit tests. The UI's risky behaviour is the conflict across two sessions, which
   was checked by hand in two browsers; the server rules it depends on are tested.
-- The web app runs on the Vite dev server inside compose. There is no production build or
-  static hosting set up.
+- On Vercel there is no always-on worker. Each API instance drains the outbox after it answers a
+  request, so notifications and retries advance whenever someone uses the app; the scheduled
+  sweep runs once a day on the free plan. An idle app can leave a failed job waiting until then.
+- Google sign-in works on the production URL and localhost only. Preview deployments get a new
+  URL each time, which is not registered with Google.
 - No live push. The item page polls every 15 seconds; a change by someone else shows up on
   the next poll or on the next write (as a 409).
 - Notifications are in-app only. No email or chat delivery.

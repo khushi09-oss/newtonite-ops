@@ -68,6 +68,26 @@ curl -b jar localhost:8000/me
 curl -b jar localhost:8000/inbox
 ```
 
+## Deploy to Vercel
+
+The repository deploys as one Vercel project with two services (`vercel.json`): the Vite build
+serves the pages, and FastAPI answers under `/api`. Functions run in Singapore (`sin1`), next to
+the Neon database. There is no worker process on Vercel; with `DRAIN_OUTBOX_IN_REQUESTS=true` each
+API instance processes the outbox after it answers a request, and a daily scheduled call to
+`/api/internal/drain` sweeps anything left.
+
+```bash
+vercel link                       # once, on your own account
+vercel integration add neon       # Postgres; sets DATABASE_URL
+vercel env add SESSION_SECRET     # and the other production settings below
+vercel deploy --prod
+```
+
+Production settings: `DEV_LOGIN=false`, `SEED_ON_BOOT=false`, `COOKIE_SECURE=true`,
+`DRAIN_OUTBOX_IN_REQUESTS=true`, `DB_POOL_MAX=5`, a random `SESSION_SECRET` and `CRON_SECRET`,
+plus `GOOGLE_CLIENT_ID` and `ADMIN_EMAILS`. The site's own URLs are allowed origins automatically.
+Migrations run on the first request after each deploy.
+
 ## Run the tests
 
 ```bash
@@ -144,7 +164,9 @@ The reasoning behind each choice, and what was traded away, is in
 | `api/app/notifications.py` | Watchers, the notification handler, the notification routes |
 | `api/app/inbox.py` | The four inbox buckets |
 | `api/app/auth.py` | Dev login, the signed session cookie, `GET /me` |
-| `api/worker.py` | The outbox worker: polling, retries, dead letters |
+| `api/app/outbox.py` | Outbox processing: batches, retries, dead letters, the drain used on Vercel |
+| `api/worker.py` | The worker process: polls the outbox every two seconds |
+| `vercel.json` | The Vercel project: two services, region, the daily sweep |
 | `api/migrations/` | Plain SQL, applied in order on boot |
 | `api/seed.sql` | The demo dataset, generated inside Postgres on first boot |
 | `api/tests/` | Tests named after the risk they guard |
@@ -164,6 +186,9 @@ Set in `.env` locally, or as environment variables wherever the API runs.
 | `COOKIE_SECURE` | `false` | `true`, so the session cookie only travels over HTTPS. |
 | `ALLOWED_ORIGINS` | `http://localhost:5173` | The site's own URL. Writes from any other page are refused. |
 | `WRITE_LIMIT_PER_MINUTE` | `300` | Writes per user per minute before 429. |
+| `DRAIN_OUTBOX_IN_REQUESTS` | not set | `true` on Vercel, where no worker process runs. |
+| `CRON_SECRET` | not set | A random string; the daily sweep must present it. |
+| `DB_POOL_MAX` | `20` | Connections per API instance. `5` on Vercel. |
 | `GOOGLE_CLIENT_ID` | empty, so Google sign-in is hidden | The OAuth client ID from Google Cloud. |
 | `ADMIN_EMAILS` | empty | The first admins, comma separated. They become admins on their first Google sign-in. |
 
