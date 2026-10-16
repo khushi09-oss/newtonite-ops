@@ -294,3 +294,24 @@ admin. Accepted for a first version because it keeps one place to look when acce
 Releasing work on removal surprises nobody who reads the history, but it means someone has to
 pick the items up again; the alternative, leaving them owned by someone who can no longer see
 them, hides them instead.
+
+## D-18 On Vercel the outbox is drained by the API itself, after each response
+
+**Situation.** D-04 assumed a worker process polling every two seconds. Vercel runs code only
+while a request is in flight, and on the free plan scheduled jobs run at most once a day.
+
+**Decision.** The outbox design is unchanged: the event and its outbox row are still written in
+the same transaction as the change. What changes is who processes it. With
+`DRAIN_OUTBOX_IN_REQUESTS=true`, each API instance runs one batch after it has sent a response,
+at most once a second, using the same `process_batch` as the worker: `FOR UPDATE SKIP LOCKED`,
+savepoints, backoff and dead letters all apply, and concurrent instances never take the same
+row. A daily scheduled call to `/api/internal/drain`, which must present `CRON_SECRET`, sweeps
+anything left while nobody used the app. Startup (pool, migrations) is idempotent and runs on
+the first request too, so it does not depend on the platform's startup hook. Locally the worker
+process still runs.
+
+**Trade-off.** Delivery and retries now ride on traffic. With users active, a notification
+lands right after the change; with none, a failed job can wait for the daily sweep. Accepted
+because a worker elsewhere would be a second platform to run and pay for, and Vercel Queues
+would replace a design whose guarantees are already tested. A paid plan's per-minute cron
+would close the gap without code changes.

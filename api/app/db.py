@@ -1,6 +1,8 @@
 """One connection pool, one migration runner, one seed runner. Raw SQL via psycopg 3."""
 
+import logging
 import os
+import threading
 from pathlib import Path
 
 from psycopg.rows import dict_row
@@ -11,9 +13,34 @@ MIGRATIONS = Path(__file__).resolve().parent.parent / "migrations"
 SEED = Path(__file__).resolve().parent.parent / "seed.sql"
 MIGRATION_LOCK = 7_461_001  # any constant; only this app takes it
 
+# prepare_threshold=None: no server-side prepared statements, which a transaction-mode pooler such as
+# Neon's can route to the wrong server connection. The cost is negligible at this query volume.
 pool = ConnectionPool(
-    DATABASE_URL, min_size=1, max_size=20, open=False, kwargs={"row_factory": dict_row}
+    DATABASE_URL,
+    min_size=1,
+    max_size=int(os.environ.get("DB_POOL_MAX", "20")),
+    open=False,
+    kwargs={"row_factory": dict_row, "prepare_threshold": None},
 )
+log = logging.getLogger("db")
+_started = False
+_start_lock = threading.Lock()
+
+
+def startup(seed: bool) -> None:
+    """Open the pool, migrate, and optionally seed, exactly once per process. Called by the app's
+    startup hook and again by the first request, so a platform that skips the hook still starts."""
+    global _started
+    if _started:
+        return
+    with _start_lock:
+        if _started:
+            return
+        pool.open()
+        migrate()
+        if seed and seed_if_empty():
+            log.info("seeded the demo dataset into an empty database")
+        _started = True
 
 
 def migrate(target: ConnectionPool | None = None) -> list[str]:
