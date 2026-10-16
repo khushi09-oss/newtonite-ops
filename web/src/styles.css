@@ -389,6 +389,226 @@ button.ghost:hover:not(:disabled) {
   color: var(--faint);
   font-size: 12.5px;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Item rows: priority, key, status, title, then due, team, owner and age in fixed columns. */
+.irow {
+  display: grid;
+  grid-template-columns: 16px 64px 16px minmax(0, 1fr) 96px 118px 22px 64px;
+  gap: 12px;
+  align-items: center;
+  padding: 0 14px;
+  min-height: 40px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+}
+.irow.no-status {
+  grid-template-columns: 16px 64px minmax(0, 1fr) 96px 118px 22px 64px;
+}
+.irow:hover {
+  background: var(--surface-2);
+  text-decoration: none;
+}
+.irow > span {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+.irow-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block !important;
+}
+.irow-team {
+  gap: 7px;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.irow-team .team-swatch,
+.crumb-team .team-swatch {
+  flex: none;
+}
+.irow time {
+  color: var(--faint);
+  font-size: 12.5px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.avatar-empty {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px dashed var(--line-2);
+}
+.due {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.due.late,
+.late-text {
+  color: var(--danger);
+  font-weight: 500;
+}
+.bucket .rows .irow,
+.rows .irow {
+  padding: 0 10px;
+}
+
+.group {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+.group-head {
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  background: var(--surface-2);
+  min-height: 38px;
+  padding: 0 14px;
+  gap: 9px;
+  font-weight: 500;
+  justify-content: flex-start;
+}
+.group.open .group-head {
+  border-bottom: 1px solid var(--line);
+}
+.group-head:hover:not(:disabled) {
+  background: #f2f4f6;
+  border-color: transparent;
+}
+.group-chevron {
+  color: var(--faint);
+  transform: rotate(-90deg);
+}
+.group.open .group-chevron {
+  transform: none;
+}
+.group-count {
+  color: var(--faint);
+  font-weight: 400;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.group-body .irow:last-child {
+  border-bottom: 0;
+}
+.group-note {
+  padding: 10px 14px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.group-more {
+  width: 100%;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  justify-content: center;
+  color: var(--accent);
+  font-size: 13px;
+  background: none;
+}
+
+.filter-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.search {
+  flex: 1;
+  min-width: 240px;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.search .icon {
+  position: absolute;
+  left: 10px;
+  color: var(--faint);
+  pointer-events: none;
+}
+.search input {
+  width: 100%;
+  padding-left: 32px;
+}
+.filter-bar select,
+.filter-bar .chip,
+.search input {
+  height: 34px;
+  min-height: 34px;
+}
+.filter-bar .chip {
+  border-radius: var(--radius);
+}
+.filter-bar .clear {
+  margin-left: 4px;
+  font-size: 13px;
+}
+.empty-state {
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  text-align: center;
+  padding: 56px 16px;
+  border: 1px dashed var(--line-2);
+  border-radius: var(--radius-lg);
+}
+
+.modal {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 0;
+  width: min(560px, calc(100vw - 32px));
+  box-shadow: 0 24px 64px rgba(15, 20, 30, 0.18);
+  color: var(--ink);
+}
+.modal::backdrop {
+  background: rgba(15, 20, 30, 0.32);
+}
+.modal form {
+  display: grid;
+  gap: 12px;
+  padding: 18px 20px 20px;
+}
+.modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.modal-head button {
+  font-size: 12px;
+  color: var(--faint);
+  min-height: 26px;
+}
+.modal-title {
+  font-size: 16px;
+  font-weight: 500;
+}
+.modal-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.modal-fields label {
+  display: grid;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
 }
 .bucket {
   margin-bottom: 30px;
@@ -1122,6 +1342,20 @@ a.tile:hover {
   .row .status,
   .row-person {
     display: none;
+  }
+  .irow,
+  .irow.no-status {
+    grid-template-columns: 16px 58px minmax(0, 1fr) 56px;
+    padding: 0 12px;
+  }
+  .irow > span:has(.status-icon),
+  .irow .due,
+  .irow-team,
+  .irow-who {
+    display: none !important;
+  }
+  .modal-fields {
+    grid-template-columns: 1fr;
   }
   .admin-row {
     grid-template-columns: 1fr;

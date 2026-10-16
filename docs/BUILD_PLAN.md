@@ -69,7 +69,8 @@ Keyset pagination everywhere. Never `offset`.
 POST /auth/dev-login {email}                      session cookie, seeded users only
 GET  /me                                          user, teams, roles
 
-GET  /items?team=&status=&priority=&assignee=&q=&cursor=&limit=50
+GET  /items?team=&status=&priority=&assignee=&q=&overdue=&cursor=&limit=50
+GET  /items/counts?team=&priority=&assignee=&q=&overdue=   matching items per status
 POST /items                                       Idempotency-Key required
 GET  /items/{id}                                  item + allowed_actions + last 20 events
 PATCH /items/{id}                                 {version, title?, description?, priority?, due_at?}

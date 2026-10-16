@@ -1,7 +1,7 @@
 import React, { useCallback } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BrowserRouter, Link, Navigate, NavLink, Outlet, Route, Routes, useMatch, useNavigate } from "react-router-dom";
+import { BrowserRouter, Link, Navigate, NavLink, Outlet, Route, Routes, useLocation, useMatch, useNavigate } from "react-router-dom";
 import { api } from "./api";
 import { Avatar, DemoBanner, teamSwatch } from "./ui";
 import { Icon } from "./icons";
@@ -42,6 +42,7 @@ function Shell() {
 
 function ShellBody({ me, demo, qc, navigate }) {
   const live = useLiveConnected();
+  const location = useLocation();
   const unread = useQuery({
     queryKey: ["notifications", "unread"],
     queryFn: () => api("/notifications?unread=true"),
@@ -69,7 +70,7 @@ function ShellBody({ me, demo, qc, navigate }) {
           Newtonite Ops
         </Link>
         {canCreate && (
-          <button className="primary rail-new" onClick={() => navigate("/items?new=1")}>
+          <button className="primary rail-new" onClick={() => navigate(newItemUrl(location))}>
             <Icon name="plus" /> New item
           </button>
         )}
@@ -117,6 +118,13 @@ function ShellBody({ me, demo, qc, navigate }) {
       </main>
     </div>
   );
+}
+
+// On the items list the form opens over the current filters; anywhere else it opens over all items.
+function newItemUrl(location) {
+  const params = new URLSearchParams(location.pathname === "/items" ? location.search : "");
+  params.set("new", "1");
+  return `/items?${params}`;
 }
 
 createRoot(document.getElementById("root")).render(

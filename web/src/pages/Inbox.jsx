@@ -1,8 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
 import { api } from "../api";
 import { pollEvery, useLiveConnected } from "../live";
-import { ItemKey, Person, Priority, Status, Time } from "../ui";
+import { ItemRow } from "../ui";
 
 const BUCKETS = [
   ["assigned", "Assigned to me", "Nothing is assigned to you right now."],
@@ -10,22 +9,6 @@ const BUCKETS = [
   ["unassigned_urgent", "Urgent and unclaimed", "Every urgent item on your teams has an owner."],
   ["stale", "Quiet for three days", "Nothing on your teams has gone quiet."],
 ];
-
-export function ItemRow({ item }) {
-  return (
-    <Link to={`/items/${item.id}`} className="row">
-      <Priority value={item.priority} compact />
-      <ItemKey teamKey={item.team_key} number={item.number} />
-      <span className="row-title">{item.title}</span>
-      <span className="row-team">{item.team_name}</span>
-      <Status value={item.status} />
-      <span className="row-person">
-        <Person name={item.assignee_name} muted="Unassigned" />
-      </span>
-      <Time iso={item.updated_at} />
-    </Link>
-  );
-}
 
 export default function Inbox() {
   const live = useLiveConnected();

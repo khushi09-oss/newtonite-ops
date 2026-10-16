@@ -405,3 +405,19 @@ numbered when taken.
 **Trade-off.** The row lock on the team means creates on one team take turns. A Postgres sequence
 per team would not block, but it skips numbers on every rollback and needs DDL for every new
 team. People create items far slower than that lock is held, so gapless keys won.
+
+## D-24 The items list is grouped by status, each group with its own cursor
+
+**Situation.** One flat list of 20,000 items sorted by last change mixed new work with closed work,
+so nobody could see where things stood. Grouping a single paged list in the browser would not fix
+it: groups would grow and shift as pages arrived, and their sizes would be wrong until the end.
+
+**Decision.** The page asks `GET /items/counts` for how many items match the filters in each
+status, then shows one group per status that has any. Each open group fetches its own first ten
+rows with `status=` added, on the same composite index the list already uses, and pages further on
+its own cursor. Finished work starts folded and is fetched only when opened. A search opens every
+group, since the item you typed may well be closed. The counts and the list share one function
+for their WHERE clause, so a count can never include an item the list would hide.
+
+**Trade-off.** The first load makes up to six requests instead of one. They are small, run in
+parallel and each hits an index, and in return every number on the screen is exact.

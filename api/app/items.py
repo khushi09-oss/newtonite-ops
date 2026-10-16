@@ -231,18 +231,8 @@ def recent_events(conn, item_id, limit: int = 20, before_seq: int | None = None)
     ).fetchall()
 
 
-def list_query(
-    user: dict,
-    team=None,
-    status=None,
-    priority=None,
-    assignee=None,
-    q=None,
-    cursor=None,
-    limit: int = 50,
-    overdue: bool = False,
-) -> tuple[str, list]:
-    """Built per request so each filter is a real constant to the planner and the composite index is used."""
+def filters(user: dict, team, status, priority, assignee, q, overdue) -> tuple[list, list]:
+    """The WHERE terms the list and its counts share: visibility first, then each filter given."""
     where, params = [], []
     if not user["is_admin"]:
         where.append(
@@ -271,6 +261,22 @@ def list_query(
     elif q:
         where.append("w.search @@ websearch_to_tsquery('english', %s)")
         params.append(q)
+    return where, params
+
+
+def list_query(
+    user: dict,
+    team=None,
+    status=None,
+    priority=None,
+    assignee=None,
+    q=None,
+    cursor=None,
+    limit: int = 50,
+    overdue: bool = False,
+) -> tuple[str, list]:
+    """Built per request so each filter is a real constant to the planner and the composite index is used."""
+    where, params = filters(user, team, status, priority, assignee, q, overdue)
     if cursor:
         try:
             at, _, cid = base64.urlsafe_b64decode(cursor).decode().partition(" ")
@@ -309,6 +315,26 @@ def list_items(
             f"{last['updated_at'].isoformat()} {last['id']}".encode()
         ).decode()
     return {"items": rows, "capped": capped, "next_cursor": next_cursor}
+
+
+@router.get("/items/counts")
+def count_items(
+    user: dict = Depends(current_user),
+    team: UUID | None = None,
+    priority: int | None = Query(None, ge=0, le=3),
+    assignee: UUID | None = None,
+    q: str | None = None,
+    overdue: bool = False,
+):
+    """How many items match the list's filters, per status, for the headers of a list grouped by status."""
+    where, params = filters(user, team, None, priority, assignee, q, overdue)
+    with db.pool.connection() as conn:
+        rows = conn.execute(
+            "select w.status, count(*) as n from work_items w join teams t on t.id = w.team_id"
+            f" where {' and '.join(where) or 'true'} group by w.status",
+            params,
+        ).fetchall()
+    return {"counts": {s: 0 for s in STATUSES} | {r["status"]: r["n"] for r in rows}}
 
 
 @router.get("/items/{item_id}")
