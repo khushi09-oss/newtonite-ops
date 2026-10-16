@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Navigate, useOutletContext } from "react-router-dom";
+import { Link, Navigate, useOutletContext } from "react-router-dom";
 import { api } from "../api";
 import { Time } from "../ui";
 
@@ -27,6 +27,7 @@ export default function Admin() {
       <People me={me} />
       <Teams selected={team} onSelect={setTeam} />
       {team && <Roster team={team} onClose={() => setTeam(null)} />}
+      <Jobs />
       <AdminLog />
     </div>
   );
@@ -234,6 +235,7 @@ function Roster({ team, onClose }) {
 }
 
 const KIND = {
+  job_retried: "retried a failed background job",
   invited: "invited",
   user_changed: "changed a person",
   team_created: "created a team",
@@ -257,6 +259,67 @@ function AdminLog() {
           </li>
         ))}
       </ol>
+    </section>
+  );
+}
+
+const JOB_TABS = [
+  ["dead", "Failed"],
+  ["pending", "Waiting"],
+  ["done", "Done"],
+];
+
+function Jobs() {
+  const [status, setStatus] = useState("dead");
+  const jobs = useQuery({ queryKey: ["admin", "jobs", status], queryFn: () => api(`/admin/jobs?status=${status}`) });
+  const retry = useAdminMutation((id) => api(`/admin/jobs/${id}/retry`, { method: "POST" }));
+  const counts = jobs.data?.counts;
+  return (
+    <section className="bucket">
+      <h2>Background jobs</h2>
+      <p className="muted small">
+        Notifications are sent by background jobs. A job that fails eight times stops and waits here. Retrying is
+        safe: nobody can be notified twice about the same change.
+      </p>
+      <div className="chips">
+        {JOB_TABS.map(([value, label]) => (
+          <button key={value} className={`chip ${status === value ? "chip-on" : ""}`} onClick={() => setStatus(value)}>
+            {label} <span className="role">{counts ? counts[value] : ""}</span>
+          </button>
+        ))}
+      </div>
+      {retry.isError && <p className="error">{retry.error.message}</p>}
+      {jobs.data?.jobs.length === 0 && (
+        <p className="empty">{status === "dead" ? "No failed jobs. Everything has been delivered." : "None right now."}</p>
+      )}
+      <div className="rows">
+        {jobs.data?.jobs.map((j) => (
+          <div key={j.id} className="row admin-row">
+            <span className="row-title">
+              <strong>
+                {j.event_kind ? `Notify about a ${j.event_kind}` : j.kind}
+              </strong>{" "}
+              {j.item_id ? (
+                <Link to={`/items/${j.item_id}`} className="muted">
+                  {j.item_title}
+                </Link>
+              ) : null}
+            </span>
+            <span className="row-team small">{j.last_error || "No error"}</span>
+            <span className="muted small">
+              {j.attempts} attempt{j.attempts === 1 ? "" : "s"}, <Time iso={j.processed_at || j.created_at} />
+            </span>
+            <span className="admin-actions">
+              {j.status === "dead" && (
+                <button className="link" disabled={retry.isPending} onClick={() => retry.mutate(j.id)}>
+                  Retry
+                </button>
+              )}
+            </span>
+          </div>
+        ))}
+      </div>
+      {jobs.data?.capped && <p className="muted small">Showing the newest 50.</p>}
     </section>
   );
 }

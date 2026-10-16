@@ -353,3 +353,22 @@ Rejected Postgres LISTEN because Neon's transaction pooler does not carry it, an
 connection held open for every tab would grow connections with the number of readers rather
 than with the work being done. Rejected WebSockets because nothing flows from the browser to the
 server on this channel.
+
+## D-21 Failed jobs wait for a person, and housekeeping runs wherever the outbox is drained
+
+**Situation.** D-11 parks a job as dead after eight failures, and until now only the database
+could show or retry one. Separately, the cleanup of idempotency keys and rate-limit counters ran
+only in the worker process, so on Vercel, where there is no worker, it never ran at all.
+
+**Decision.** Admins see background jobs by status on the Admin page, with the error, the item
+the job was about, and a Retry button. A retry is one conditional update from dead to pending
+with a fresh set of attempts, so two admins retrying together cannot both succeed; the second
+gets 409. Each retry is in the admin log with the error it cleared. Retrying is safe because
+every handler is idempotent. All cleanup now lives in one `housekeeping` function: expired
+idempotency keys, old rate-limit windows, and finished jobs older than seven days. The worker
+calls it every minute and the daily scheduled sweep calls it on Vercel. Failed jobs are never
+purged.
+
+**Trade-off.** A person has to notice and act; there is no alert yet and no automatic retry
+after the eighth failure. Accepted because a job that has failed eight times with backoff usually
+needs something fixed first, and retrying it blindly would only fail again.

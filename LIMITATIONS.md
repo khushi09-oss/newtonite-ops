@@ -37,7 +37,9 @@ Kept current with every PR. Each line says what is missing and why it was left o
 - Only admins manage people and teams. A team lead cannot invite someone to their own team.
 - Full-text search is Postgres `tsvector` with English stemming. No fuzzy matching, no
   relevance tuning.
-- Dead-lettered outbox rows need a human; there is no retry button yet.
+- A background job that fails eight times stops and waits for an admin to retry it from the Admin
+  page. Nothing alerts anyone that it happened; the count is only seen there.
+- Finished background jobs are deleted after seven days. Failed ones are kept until retried.
 - The inbox's stale threshold is fixed at three days and its buckets show the first 50 only;
   there is no paging inside a bucket, the list page with filters is the way to see more.
 - Idempotency keys are kept for 24 hours. A retry later than that runs the request again.
