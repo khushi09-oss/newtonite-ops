@@ -142,3 +142,21 @@ the SELECT and the UPDATE, the version in the WHERE clause no longer matches and
 touches nothing, so the SELECT only ever decides which error to return, never whether the write
 is safe. Rejected `SELECT ... FOR UPDATE` because the version check already gives the guarantee
 and a lock would hold other writers for the length of the request.
+
+## D-10 A stale version is answered before permission, and comments bump the version too
+
+**Situation.** Twenty people click claim on the same item. One wins. The other nineteen hold a
+row that no longer exists. Some of their requests reach the server before the winner commits,
+some after. The brief wants the loser told who won, every time.
+
+**Decision.** Every mutating route checks the client's `version` against the row before it
+checks whether the action is allowed. A mismatch is 409 with the current row and recent events,
+whatever the caller was trying to do. Only when the version matches does the permission check
+run, so a 403 or 422 always describes a row the caller has actually seen. Comments go through
+the same write path and bump the version, with the row locked for the duration since the client
+sends no version for them; that is why comments show up in the history and in the stale-edit
+banner like any other change.
+
+**Trade-off.** Someone editing a title will get a 409 because a colleague commented. The
+banner shows exactly that and offers retry, which is a smaller cost than history that skips
+comments or a version number that lies about what changed.

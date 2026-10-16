@@ -9,7 +9,9 @@ def test_seed_runs_once_and_never_duplicates(client):
             "select (select count(*) from users) as users, (select count(*) from teams) as teams,"
             " (select count(*) from work_items) as items, (select count(*) from work_item_events) as events"
         ).fetchone()
-    assert (c["users"], c["teams"]) == (40, 8) and c["items"] >= 20000  # tests create items; nothing can delete them
+    assert (c["users"], c["teams"]) == (40, 8) and c[
+        "items"
+    ] >= 20000  # tests create items; nothing can delete them
     assert c["events"] > 100_000
 
 

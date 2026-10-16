@@ -19,4 +19,7 @@ def test_login_then_me_returns_teams_and_roles(client):
     me = client.get("/me").json()
     assert me["email"] == "ava.okafor@newtonite.dev"
     assert me["is_admin"] is True
-    assert {(t["name"], t["role"]) for t in me["teams"]} == {("Payments", "lead"), ("Onboarding", "viewer")}
+    assert {(t["name"], t["role"]) for t in me["teams"]} == {
+        ("Payments", "lead"),
+        ("Onboarding", "viewer"),
+    }
