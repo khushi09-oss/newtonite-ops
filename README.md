@@ -112,6 +112,14 @@ Migrations run on the first request after each deploy.
 docker compose exec api python -m pytest -q
 ```
 
+Browser tests drive two real browsers as two people, with Playwright. With the stack running:
+
+```bash
+cd e2e && npm install && npx playwright install chromium
+npx playwright test                                              # against the local stack
+BASE_URL=https://newtonite-ops-vert.vercel.app npx playwright test  # against the live demo
+```
+
 Tests run against the real Postgres in the stack, not SQLite, because the claim race, the
 idempotency lock and the outbox all depend on Postgres row locking. The API image carries its
 own copy of the code, so after changing code or tests run `docker compose up --build -d`
@@ -135,6 +143,9 @@ before testing again.
 | A failing job retries forever or leaves partial writes | `test_outbox_dead_after_max_attempts` |
 | Two workers take the same job | `test_two_workers_skip_locked_no_double_processing` |
 | A crash loses queued work | `test_outbox_rows_survive_a_crash_mid_batch` |
+| Someone acts on a stale page and is not told why | Browser: `a stale edit is rolled back and the conflict strip names who changed what` |
+| Two people claiming in the UI both think they won | Browser: `two people claim the same item and exactly one of them wins` |
+| A change by someone else goes unseen | Browser: `a change by someone else appears on an open page without a reload` |
 | Lists slow down as data grows | `test_list_uses_index`, `test_inbox_queries_use_indexes` (EXPLAIN shows no sequential scan) |
 
 ## How it is built
@@ -190,6 +201,7 @@ The reasoning behind each choice, and what was traded away, is in
 | `api/seed.sql` | The demo dataset, generated inside Postgres on first boot |
 | `api/tests/` | Tests named after the risk they guard |
 | `web/` | React, Vite and TanStack Query: sign-in, inbox, items list, item page, notifications |
+| `e2e/` | Browser tests with two people in two real browsers |
 | `scripts/demo_race.py` | The three guarantees, shown against the running stack |
 | `docs/BUILD_PLAN.md` | The plan this was built to, step by step |
 
