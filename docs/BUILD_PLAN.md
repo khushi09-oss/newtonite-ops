@@ -137,7 +137,7 @@ React + Vite + TanStack Query. Three routes:
 | 4 | [x] Idempotency dependency, outbox insert, worker, notifications, `/inbox` | worker survives a kill mid-batch and a second worker alongside |
 | 5 | [x] React: inbox, list, detail, optimistic mutations, 409 banner, polling | two browser windows show the conflict |
 | 6 | [x] Remaining tests | all green |
-| 7 | [ ] Docs pass: decisions, README, limitations, `scripts/demo_race.py` | a stranger can run it from the README |
+| 7 | [x] Docs pass: decisions, README, limitations, `scripts/demo_race.py` | a stranger can run it from the README |
 | buffer | [ ] SSE instead of polling, saved filters | only after everything above is green |
 
 ## Deliberately not built
