@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BrowserRouter, Link, Navigate, NavLink, Outlet, Route, Routes, useNavigate } from "react-router-dom";
 import { api } from "./api";
+import { DemoBanner } from "./ui";
 import Login from "./pages/Login";
 import Inbox from "./pages/Inbox";
 import Items from "./pages/Items";
@@ -19,6 +20,7 @@ function Shell() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const me = useQuery({ queryKey: ["me"], queryFn: () => api("/me") });
+  const config = useQuery({ queryKey: ["auth-config"], queryFn: () => api("/auth/config"), staleTime: Infinity });
   const unread = useQuery({
     queryKey: ["notifications", "unread"],
     queryFn: () => api("/notifications?unread=true"),
@@ -66,6 +68,7 @@ function Shell() {
         </div>
       </nav>
       <main className="content">
+        {config.data?.demo && <DemoBanner />}
         <Outlet context={me.data} />
       </main>
     </div>

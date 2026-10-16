@@ -7,7 +7,7 @@ import jwt
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
 
-from app import auth, db, limits
+from app import auth, db, demo, limits
 
 CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 CERTS_URL = os.environ.get("GOOGLE_CERTS_URL", "https://www.googleapis.com/oauth2/v3/certs")
@@ -58,7 +58,11 @@ class GoogleSignIn(BaseModel):
 @router.get("/auth/config")
 def auth_config():
     """Which sign-in methods this deployment offers. Public, and holds nothing secret."""
-    return {"google_client_id": CLIENT_ID or None, "dev_login": auth.DEV_LOGIN}
+    return {
+        "google_client_id": CLIENT_ID or None,
+        "dev_login": auth.DEV_LOGIN,
+        "demo": demo.DEMO_MODE,
+    }
 
 
 @router.post("/auth/google")
@@ -79,6 +83,8 @@ def google_sign_in(body: GoogleSignIn, request: Request, response: Response):
                 " returning id, email, name, is_admin, google_sub, deactivated_at",
                 (email, claims.get("name") or email.split("@")[0]),
             ).fetchone()
+        elif user is None and demo.DEMO_MODE:  # a public demo lets any verified Google account in
+            user = demo.add_visitor(conn, email, claims.get("name") or email.split("@")[0], sub)
         if user is None or user["deactivated_at"] is not None:
             raise HTTPException(403, f"{email} has not been invited. Ask an admin to invite you.")
         if user["google_sub"] is not None and user["google_sub"] != sub:

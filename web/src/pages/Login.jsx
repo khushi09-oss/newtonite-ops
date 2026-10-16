@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
+import { DemoBanner } from "../ui";
 
 const QUICK = [
   ["ava.okafor@newtonite.dev", "Ava, admin"],
@@ -47,15 +48,20 @@ export default function Login() {
 
   if (config.isPending) return <div className="page-loading">Loading</div>;
   if (config.isError) return <div className="login"><p className="error">Could not reach the server: {config.error.message}</p></div>;
-  const { google_client_id: clientId, dev_login: devLogin } = config.data;
+  const { google_client_id: clientId, dev_login: devLogin, demo } = config.data;
 
   return (
     <div className="login">
       <div className="login-card">
+        {demo && <DemoBanner />}
         <h1>Newtonite Ops</h1>
         {clientId ? (
           <>
-            <p className="muted">Sign in with the Google account your admin invited.</p>
+            <p className="muted">
+              {demo
+                ? "Sign in with any Google account. In this demo you join the Support team."
+                : "Sign in with the Google account your admin invited."}
+            </p>
             <GoogleButton
               clientId={clientId}
               onCredential={(credential) =>
@@ -68,7 +74,7 @@ export default function Login() {
           !devLogin && <p className="muted">Sign-in is not configured on this server.</p>
         )}
         {error && <p className="error">{error}</p>}
-        {devLogin && <DevSignIn divided={Boolean(clientId)} busy={busy} onSignIn={(email) => finish(() => api("/auth/dev-login", { method: "POST", body: { email } }))} />}
+        {devLogin && <DevSignIn demo={demo} divided={Boolean(clientId)} busy={busy} onSignIn={(email) => finish(() => api("/auth/dev-login", { method: "POST", body: { email } }))} />}
       </div>
     </div>
   );
@@ -98,7 +104,7 @@ function GoogleButton({ clientId, onCredential, onError }) {
   return <div ref={slot} className="google-slot" />;
 }
 
-function DevSignIn({ divided, busy, onSignIn }) {
+function DevSignIn({ demo, divided, busy, onSignIn }) {
   const [email, setEmail] = useState("");
   return (
     <form
@@ -108,7 +114,11 @@ function DevSignIn({ divided, busy, onSignIn }) {
         onSignIn(email.trim());
       }}
     >
-      <p className="muted">Development sign-in: any seeded user, no password. Off in production.</p>
+      <p className="muted">
+        {demo
+          ? "Or try it instantly as one of the demo people. No account needed."
+          : "Development sign-in: any seeded user, no password. Off in production."}
+      </p>
       <label>
         Email
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="first.last@newtonite.dev" />

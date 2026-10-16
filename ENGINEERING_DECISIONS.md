@@ -315,3 +315,21 @@ lands right after the change; with none, a failed job can wait for the daily swe
 because a worker elsewhere would be a second platform to run and pay for, and Vercel Queues
 would replace a design whose guarantees are already tested. A paid plan's per-minute cron
 would close the gap without code changes.
+
+## D-19 One deployment, run as a public demo, with the real sign-in still on show
+
+**Situation.** Reviewers need to use the app without being invited, but they should still see the
+real Google sign-in, and one visitor must not be able to break the demo for everyone else.
+
+**Decision.** The live site runs with `DEMO_MODE=true`. Any verified Google account gets in and
+lands as a member of Support and a viewer of Risk; the one-click demo people on the sign-in page
+cover the other roles, including the admin. The seeded demo accounts cannot be changed, demoted,
+deactivated or removed from teams, though visitors can invite and manage people of their own.
+Every page carries a banner saying the data is shared and made up. A nightly scheduled call,
+behind `CRON_SECRET` and only in demo mode, empties every table and loads the seed again. With
+`DEMO_MODE` off, the same code is invite-only and its history is never deleted.
+
+**Trade-off.** One site cannot also hold real data: in demo mode anyone can act as the admin.
+Accepted because the assignment needs a site to try, and a second, empty production deployment
+would show reviewers nothing. Running real work means a second deployment with demo mode off,
+which the README describes.

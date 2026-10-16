@@ -139,3 +139,12 @@ export function describeChange(e, item) {
     .map((f) => `${f.replace("_id", "").replace("_at", " date")} ${pretty(f, before[f])} → ${pretty(f, after[f])}`)
     .join(", ");
 }
+
+export function DemoBanner() {
+  return (
+    <div className="demo-banner" role="note">
+      This is a public demo. The people and items are made up, everyone shares them, and they reset every
+      night at 04:00 Singapore time.
+    </div>
+  );
+}

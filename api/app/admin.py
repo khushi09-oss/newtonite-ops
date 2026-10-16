@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from psycopg.errors import ForeignKeyViolation, UniqueViolation
 from pydantic import BaseModel, Field
 
-from app import db
+from app import db, demo
 from app.auth import current_user
 from app.items import OPEN, _jsonb, apply_change
 
@@ -131,6 +131,7 @@ def change_user(user_id: UUID, body: UserChange, admin: dict = Depends(require_a
     if user_id == admin["id"] and (body.is_admin is False or body.active is False):
         raise HTTPException(422, "You cannot remove your own admin access or deactivate yourself")
     with db.pool.connection() as conn, conn.transaction():
+        demo.guard(conn, user_id)
         if conn.execute("select 1 from users where id = %s", (user_id,)).fetchone() is None:
             raise HTTPException(404, "user not found")
         if body.name is not None:
@@ -202,6 +203,7 @@ class RoleChange(BaseModel):
 def set_role(team_id: UUID, user_id: UUID, body: RoleChange, admin: dict = Depends(require_admin)):
     """Add someone to a team, or change their role on it."""
     with db.pool.connection() as conn, conn.transaction():
+        demo.guard(conn, user_id)
         before = conn.execute(
             "select role from team_members where team_id = %s and user_id = %s",
             (team_id, user_id),
@@ -231,6 +233,7 @@ def remove_member(team_id: UUID, user_id: UUID, admin: dict = Depends(require_ad
     """Take someone off a team. Their open items on it are released through apply_change, so each
     release is in the item's history and nothing stays owned by someone who can no longer see it."""
     with db.pool.connection() as conn, conn.transaction():
+        demo.guard(conn, user_id)
         gone = conn.execute(
             "delete from team_members where team_id = %s and user_id = %s returning role",
             (team_id, user_id),
