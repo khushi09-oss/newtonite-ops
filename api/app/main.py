@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
-from app import auth, db, google, inbox, items, notifications
+from app import admin, auth, db, google, inbox, items, notifications
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("app")
@@ -49,6 +49,7 @@ app.include_router(google.router)
 app.include_router(items.router)
 app.include_router(notifications.router)
 app.include_router(inbox.router)
+app.include_router(admin.router)
 
 
 @app.exception_handler(items.Conflict)

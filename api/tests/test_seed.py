@@ -4,14 +4,26 @@ from app import db
 def test_seed_runs_once_and_never_duplicates(client):
     # The app has already seeded on boot; a second call must be a no-op, not a second copy.
     assert db.seed_if_empty() is False
+    # Count seeded rows only: other tests invite people and create teams, on other domains and names.
+    seeded_teams = [
+        "Payments",
+        "Compliance",
+        "Support",
+        "Incidents",
+        "Onboarding",
+        "Risk",
+        "Platform",
+        "Billing",
+    ]
     with db.pool.connection() as conn:
         c = conn.execute(
-            "select (select count(*) from users) as users, (select count(*) from teams) as teams,"
-            " (select count(*) from work_items) as items, (select count(*) from work_item_events) as events"
+            "select (select count(*) from users where email like '%%@newtonite.dev') as users,"
+            " (select count(*) from teams where name = any(%s)) as teams,"
+            " (select count(*) from work_items) as items, (select count(*) from work_item_events) as events",
+            (seeded_teams,),
         ).fetchone()
-    assert (c["users"], c["teams"]) == (40, 8) and c[
-        "items"
-    ] >= 20000  # tests create items; nothing can delete them
+    assert (c["users"], c["teams"]) == (40, 8)
+    assert c["items"] >= 20000  # tests create items; nothing can delete them
     assert c["events"] > 100_000
 
 
