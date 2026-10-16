@@ -6,7 +6,7 @@ and the rows are simply picked up again; handlers are idempotent, so that is saf
 import logging
 import time
 
-from app import db
+from app import db, limits
 from app.notifications import notify
 
 log = logging.getLogger("worker")
@@ -83,6 +83,7 @@ def main() -> None:
                 claimed = process_batch(conn)
                 if tick % 30 == 0:
                     purge_idempotency_keys(conn)
+                    limits.purge(conn)
                     warn_about_unknown_kinds(conn)
         except Exception:
             log.exception("worker loop failed; retrying after the poll interval")

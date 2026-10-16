@@ -7,10 +7,10 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
+from conftest import session_cookie
 from fastapi.testclient import TestClient
 
 from app import db
-from app.auth import signer
 from app.main import app
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -95,7 +95,7 @@ def test_idempotency_concurrent_duplicates_run_once(client, team_id):
     clients = []
     for _ in range(10):
         c = TestClient(app)
-        c.cookies.set("session", signer.dumps(str(dev["id"])))
+        c.cookies.set("session", session_cookie(dev["id"]))
         clients.append(c)
 
     def create(c):

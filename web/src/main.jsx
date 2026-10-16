@@ -29,8 +29,9 @@ function Shell() {
   if (me.isError) return <Navigate to="/login" replace />;
 
   const count = unread.data ? unread.data.notifications.length : 0;
-  const signOut = () => {
-    document.cookie = "session=; Max-Age=0; path=/";
+  const signOut = async () => {
+    // The cookie is HttpOnly, so only the server can end the session.
+    await api("/auth/logout", { method: "POST" }).catch(() => {});
     qc.clear();
     navigate("/login");
   };

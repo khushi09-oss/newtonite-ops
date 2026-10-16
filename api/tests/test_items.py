@@ -6,10 +6,10 @@ from uuid import UUID, uuid4
 
 import psycopg
 import pytest
+from conftest import session_cookie
 from fastapi.testclient import TestClient
 
 from app import db
-from app.auth import signer
 from app.items import Conflict, apply_change, list_query
 from app.main import app
 
@@ -157,7 +157,7 @@ def test_claim_race_exactly_one_winner(login, team_id):
     clients = []
     for n in range(20):
         c = TestClient(app)
-        c.cookies.set("session", signer.dumps(str(racers[n % len(racers)]["id"])))
+        c.cookies.set("session", session_cookie(racers[n % len(racers)]["id"]))
         clients.append(c)
     item = new_item(clients[0], team_id("Risk"), "Everyone wants this one")
 

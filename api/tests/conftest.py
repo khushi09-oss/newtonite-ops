@@ -33,3 +33,11 @@ def team_id():
             return conn.execute("select id from teams where name = %s", (name,)).fetchone()["id"]
 
     return _team
+
+
+def session_cookie(user_id) -> str:
+    """A signed cookie for a fresh session of `user_id`, for tests that drive many clients at once."""
+    from app.auth import issue_session
+
+    with db.pool.connection() as conn:
+        return issue_session(conn, user_id)
