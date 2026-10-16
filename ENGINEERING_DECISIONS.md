@@ -122,3 +122,23 @@ without `SESSION_SECRET` rather than fall back to a guessable default.
 **Trade-off.** No revocation and no password. The cookie is as trustworthy as the secret, which
 is fine for a demo where anyone may be anyone; the effort goes into what a user may do, not
 into proving who they are.
+
+## D-09 One write function that reads the row first, then updates under the version check
+
+**Situation.** D-01 and D-02 need every write to produce an honest event (what the field was,
+what it became) and every stale write to come back with the current row. Doing that with a
+single UPDATE means either a second query on the failure path or a RETURNING of old values,
+which Postgres 16 does not offer.
+
+**Decision.** `apply_change()` selects the row, compares `version` to the client's, runs the
+UPDATE with `version = :expected` (and any extra guard, such as `assignee_id is null` for a
+claim) in the WHERE clause, then appends the event with `before` and `after` taken from the two
+rows. Zero rows from the UPDATE raises a conflict that already carries the row it read. The same
+function inserts when there is no id, so creation leaves a `created` event by the same path. The
+event's `seq` is the new `version`, which keeps "version equals event count" true by construction.
+
+**Trade-off.** One extra SELECT per write. It is not a race: if another writer slips in between
+the SELECT and the UPDATE, the version in the WHERE clause no longer matches and the UPDATE
+touches nothing, so the SELECT only ever decides which error to return, never whether the write
+is safe. Rejected `SELECT ... FOR UPDATE` because the version check already gives the guarantee
+and a lock would hold other writers for the length of the request.
