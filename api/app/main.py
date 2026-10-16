@@ -98,8 +98,12 @@ def health():
 
 @app.get("/internal/drain")
 def scheduled_drain(request: Request):
-    """The daily scheduled sweep, for jobs left waiting while nobody used the app. Vercel's scheduler
+    """The daily scheduled sweep: jobs left waiting while nobody used the app, then housekeeping.
+    Vercel's scheduler
     sends `Authorization: Bearer $CRON_SECRET`; anything else is refused."""
     if not CRON_SECRET or request.headers.get("authorization") != f"Bearer {CRON_SECRET}":
         raise HTTPException(404, "Not Found")
-    return {"processed": outbox.drain(max_batches=50)}
+    processed = outbox.drain(max_batches=50)
+    with db.pool.connection() as conn:
+        outbox.housekeeping(conn)  # on Vercel this is the only place it runs
+    return {"processed": processed}

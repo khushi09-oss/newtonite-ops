@@ -4,14 +4,8 @@ Run several side by side; FOR UPDATE SKIP LOCKED keeps them on different rows.""
 import logging
 import time
 
-from app import db, limits
-from app.outbox import (
-    BATCH,
-    HANDLERS,
-    process_batch,
-    purge_idempotency_keys,
-    warn_about_unknown_kinds,
-)
+from app import db
+from app.outbox import BATCH, HANDLERS, housekeeping, process_batch
 
 log = logging.getLogger("worker")
 POLL_SECONDS = 2
@@ -28,9 +22,7 @@ def main() -> None:
             with db.pool.connection() as conn:
                 claimed = process_batch(conn)
                 if tick % 30 == 0:
-                    purge_idempotency_keys(conn)
-                    limits.purge(conn)
-                    warn_about_unknown_kinds(conn)
+                    housekeeping(conn)
         except Exception:
             log.exception("worker loop failed; retrying after the poll interval")
         tick += 1
