@@ -192,3 +192,19 @@ the write it describes. A handler that raises stores nothing, so the retry runs 
 
 **Trade-off.** One stored row per keyed write, purged after 24 hours by the worker. Keys are
 scoped to the user, so two users cannot collide and one user cannot replay another's write.
+
+## D-13 The inbox is four indexed queries with team ids passed in, not one query over everything
+
+**Situation.** "What needs my attention" is the page people open most, against tens of thousands
+of items, and it must stay fast as the history grows.
+
+**Decision.** `GET /inbox` runs four small queries, one per bucket, each shaped to land on one
+index: assigned to me (partial index on assignee for open items), awaiting my approval and
+unassigned urgent (the team, status, priority index), and stale (the partial index on team and
+last activity for open items). The caller's team ids are fetched first and passed as arrays, so
+each query is a plain index condition rather than a join the planner has to reason about. The
+open-state predicate is written exactly as the partial indexes define it. Each bucket is capped
+at 50 and says so.
+
+**Trade-off.** Five round trips instead of one, each under a millisecond on this data. No
+paging inside a bucket; the list page with filters is where to go for more than 50.

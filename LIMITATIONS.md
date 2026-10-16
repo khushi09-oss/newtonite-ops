@@ -11,6 +11,8 @@ Kept current with every PR. Each line says what is missing and why it was left o
 - Full-text search is Postgres `tsvector` with English stemming. No fuzzy matching, no
   relevance tuning.
 - Dead-lettered outbox rows need a human; there is no retry button yet.
+- The inbox's stale threshold is fixed at three days and its buckets show the first 50 only;
+  there is no paging inside a bucket, the list page with filters is the way to see more.
 - Idempotency keys are kept for 24 hours. A retry later than that runs the request again.
 - Notifications arrive up to two seconds after the change, when the worker next polls, and
   the recipients are worked out then, not at the moment of the change. Someone who starts
