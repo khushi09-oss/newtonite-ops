@@ -41,7 +41,7 @@ test("a stale edit is rolled back and the conflict strip names who changed what"
 
   // The lead raises the priority. The member's tab still shows version 1.
   await lead.page.getByRole("button", { name: "Edit" }).click();
-  await lead.page.locator(".edit-form select").first().selectOption({ label: "P0 Urgent" });
+  await lead.page.locator(".edit-form select").first().selectOption({ label: "Urgent" });
   await lead.page.getByRole("button", { name: "Save changes" }).click();
   await expect(prop(lead.page, "Priority")).toContainText("Urgent");
   await expect(prop(member.page, "Version")).toHaveText("1");

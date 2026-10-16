@@ -2,20 +2,28 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useOutletContext, useParams } from "react-router-dom";
 import { api, newKey } from "../api";
+import { Icon } from "../icons";
 import { pollEvery, useLiveConnected } from "../live";
 import {
+  Avatar,
   KIND_LABEL,
   PRIORITY_LABEL,
   Person,
   Priority,
+  STATUS_LABEL,
   Status,
+  StatusIcon,
   TRANSITION_LABEL,
   Time,
   describeChange,
   describeEvent,
+  itemKey,
+  teamSwatch,
 } from "../ui";
 
 const NOTE_REQUIRED = { "awaiting_approval>triaged": true };
+const ORDER = Object.keys(STATUS_LABEL);
+const FINISHED = ["resolved", "closed"];
 
 export default function Item() {
   const { id } = useParams();
@@ -60,6 +68,7 @@ export default function Item() {
       qc.invalidateQueries({ queryKey: key });
       qc.invalidateQueries({ queryKey: ["inbox"] });
       qc.invalidateQueries({ queryKey: ["items"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });
 
@@ -67,10 +76,11 @@ export default function Item() {
   if (item.isError) {
     return (
       <div className="page">
-        <p className="error">
-          {item.error.status === 404 ? "There is no item here you can see." : item.error.message}
-        </p>
-        <Link to="/items">Back to items</Link>
+        <div className="empty-state">
+          <strong>{item.error.status === 404 ? "There is no item here you can see." : "Could not load this item."}</strong>
+          <span className="muted">{item.error.status === 404 ? "It may be on a team you are not part of." : item.error.message}</span>
+          <Link to="/items">Back to items</Link>
+        </div>
       </div>
     );
   }
@@ -110,9 +120,46 @@ export default function Item() {
   const transitions = it.allowed_actions.filter((a) => a.startsWith("transition:")).map((a) => a.slice(11));
   const events = [...it.events, ...older];
   const last = conflict && conflict.events && conflict.events[0];
+  // The step that moves the work on gets the primary button: claiming it, or the next status along.
+  const forward = transitions.find((to) => ORDER.indexOf(to) > ORDER.indexOf(it.status));
+  const primary = can("claim") ? "claim" : forward;
+  const others = transitions.filter((to) => to !== primary);
+  const overdue = it.due_at && new Date(it.due_at) < new Date() && !FINISHED.includes(it.status);
+  const busy = act.isPending;
+  const claim = () => versioned("/claim", {}, () => ({ assignee_id: me.id, assignee_name: me.name, status: "in_progress" }));
+  const tools = can("assign") || can("release") || (can("edit") && !editing);
 
   return (
     <div className="page item-page">
+      <div className="item-top">
+        <nav className="crumbs" aria-label="Breadcrumb">
+          <Link to="/items">Items</Link>
+          <Icon name="chevron" className="crumb-sep" />
+          <Link to={`/items?team=${it.team_id}`} className="crumb-team">
+            <span className="team-swatch" style={{ background: teamSwatch(it.team_name) }} />
+            {it.team_name}
+          </Link>
+          <Icon name="chevron" className="crumb-sep" />
+          <span className="crumb-key">{itemKey(it.team_key, it.number)}</span>
+        </nav>
+        {can("watch") && (
+          <button
+            className={`chip ${it.watching ? "chip-on" : ""}`}
+            aria-pressed={it.watching}
+            onClick={() =>
+              act.mutate({
+                path: `/items/${id}/watch`,
+                method: it.watching ? "DELETE" : "POST",
+                optimistic: (old) => ({ watching: !old.watching }),
+              })
+            }
+            disabled={busy}
+          >
+            <Icon name="bell" /> {it.watching ? "Watching" : "Watch"}
+          </button>
+        )}
+      </div>
+
       {conflict && (
         <div className="conflict" role="alert">
           <span>
@@ -129,7 +176,7 @@ export default function Item() {
             <button className="link" onClick={reload}>
               Reload
             </button>
-            <button className="link" onClick={retry} disabled={act.isPending}>
+            <button className="link" onClick={retry} disabled={busy}>
               Retry on the new version
             </button>
           </span>
@@ -146,9 +193,6 @@ export default function Item() {
 
       <div className="item-grid">
         <article className="item-main">
-          <div className="crumbs">
-            <Link to="/items">Items</Link> / {it.team_name} / {KIND_LABEL[it.kind]}
-          </div>
           {editing ? (
             <EditForm
               it={it}
@@ -163,19 +207,30 @@ export default function Item() {
                   after: () => setEditing(false),
                 })
               }
-              busy={act.isPending}
+              busy={busy}
             />
           ) : (
-            <>
+            <header className="item-head">
+              <div className="item-tags">
+                <span className="tag">{KIND_LABEL[it.kind]}</span>
+                {it.priority <= 1 && <Priority value={it.priority} />}
+                {overdue && <span className="due late">Overdue</span>}
+              </div>
               <h1>{it.title}</h1>
+              <p className="item-byline muted">
+                Opened by {it.reporter_name} <Time iso={it.created_at} />
+              </p>
               {it.description ? <p className="description">{it.description}</p> : <p className="muted">No description.</p>}
-            </>
+            </header>
           )}
 
-          <section className="timeline">
-            <h2>Activity</h2>
+          <section className="timeline" aria-labelledby="activity-title">
+            <div className="timeline-head">
+              <h2 id="activity-title">Activity</h2>
+              <span className="muted small">{it.version.toLocaleString()} changes</span>
+            </div>
             <form
-              className="comment-box"
+              className="composer"
               onSubmit={(e) => {
                 e.preventDefault();
                 const body = comment.trim();
@@ -194,30 +249,53 @@ export default function Item() {
                 });
               }}
             >
-              <textarea
-                placeholder={can("comment") ? "Add a comment" : "You cannot comment on this item"}
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                disabled={!can("comment")}
-                rows={2}
-              />
-              <button className="primary small-btn" disabled={!comment.trim() || act.isPending}>
-                Comment
-              </button>
+              <Avatar name={me.name} size={28} />
+              <div className="composer-box">
+                <textarea
+                  aria-label="Comment"
+                  placeholder={can("comment") ? "Leave a comment" : "Viewers cannot comment on this item"}
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  disabled={!can("comment")}
+                  rows={2}
+                />
+                <div className="composer-foot">
+                  <button className="primary small-btn" disabled={!comment.trim() || busy}>
+                    Comment
+                  </button>
+                </div>
+              </div>
             </form>
             <ol className="events">
-              {events.map((e) => (
-                <li key={e.id} className={`event event-${e.kind}`}>
-                  <span className="event-line">
-                    <strong>{e.actor_name}</strong> {describeEvent(e, it)} <Time iso={e.created_at} />
-                  </span>
-                  {e.note && <p className="event-note">{e.note}</p>}
-                </li>
-              ))}
+              {events.map((e) =>
+                e.kind === "comment" ? (
+                  <li key={e.id} className="event event-comment">
+                    <Avatar name={e.actor_name} size={28} />
+                    <div className="comment-card">
+                      <div className="event-line">
+                        <strong>{e.actor_name}</strong> <Time iso={e.created_at} />
+                      </div>
+                      <p className="event-note">{e.note}</p>
+                    </div>
+                  </li>
+                ) : (
+                  <li key={e.id} className="event">
+                    <span className="event-mark">
+                      {e.kind === "status" && e.after ? <StatusIcon value={e.after.status} /> : <span className="event-dot" />}
+                    </span>
+                    <div>
+                      <div className="event-line">
+                        <strong>{e.actor_name}</strong> {describeEvent(e, it)} <Time iso={e.created_at} />
+                      </div>
+                      {e.note && <p className="event-note quiet">{e.note}</p>}
+                    </div>
+                  </li>
+                ),
+              )}
             </ol>
             {events.length >= 20 && events.length < it.version && (
               <button
-                className="link"
+                className="link older"
                 onClick={async () => {
                   const min = Math.min(...events.map((e) => e.seq));
                   const page = await api(`/items/${id}/events?before_seq=${min}&limit=50`);
@@ -231,113 +309,150 @@ export default function Item() {
         </article>
 
         <aside className="item-side">
-          <div className="actions">
-            {can("claim") && (
-              <button
-                className="primary"
-                onClick={() => versioned("/claim", {}, () => ({ assignee_id: me.id, assignee_name: me.name, status: "in_progress" }))}
-                disabled={act.isPending}
-              >
-                Claim
+          <section className="side-card">
+            <h2>Next step</h2>
+            <p className="muted small">{nextHint(it, Boolean(primary || others.length), primary)}</p>
+            {primary && (
+              <button className="primary wide" onClick={() => (primary === "claim" ? claim() : transition(primary))} disabled={busy}>
+                {primary === "claim" ? "Claim" : TRANSITION_LABEL[primary](it.status)}
               </button>
             )}
-            {transitions.map((to) => (
-              <button key={to} onClick={() => transition(to)} disabled={act.isPending}>
-                {TRANSITION_LABEL[to](it.status)}
-              </button>
-            ))}
-            {can("release") && (
-              <button onClick={() => versioned("/release", {}, () => ({ assignee_id: null, assignee_name: null }))} disabled={act.isPending}>
-                Release
-              </button>
-            )}
-            {can("assign") && (
-              <button onClick={() => setAssigning((v) => !v)} disabled={act.isPending}>
-                Reassign
-              </button>
-            )}
-            {can("edit") && !editing && <button onClick={() => setEditing(true)}>Edit</button>}
-            {can("watch") && (
-              <button
-                onClick={() =>
-                  act.mutate({
-                    path: `/items/${id}/watch`,
-                    method: it.watching ? "DELETE" : "POST",
-                    optimistic: (old) => ({ watching: !old.watching }),
-                  })
-                }
-                disabled={act.isPending}
-              >
-                {it.watching ? "Stop watching" : "Watch"}
-              </button>
-            )}
-          </div>
-          {noteFor && (
-            <form
-              className="note-box"
-              onSubmit={(e) => {
-                e.preventDefault();
-                transition(noteFor);
-              }}
-            >
-              <textarea autoFocus placeholder="Why it is going back" value={note} onChange={(e) => setNote(e.target.value)} rows={2} />
-              <div className="note-actions">
-                <button className="primary small-btn" disabled={!note.trim() || act.isPending}>
-                  {TRANSITION_LABEL[noteFor](it.status)} with note
-                </button>
-                <button type="button" className="link" onClick={() => setNoteFor(null)}>
-                  Cancel
-                </button>
+            {others.length > 0 && (
+              <div className="actions">
+                {others.map((to) => (
+                  <button key={to} onClick={() => transition(to)} disabled={busy}>
+                    {TRANSITION_LABEL[to](it.status)}
+                  </button>
+                ))}
               </div>
-            </form>
-          )}
-          {assigning && (
-            <AssignPicker
-              teamId={it.team_id}
-              onPick={(u) => {
-                setAssigning(false);
-                versioned("/assign", { assignee_id: u.id }, () => ({ assignee_id: u.id, assignee_name: u.name }));
-              }}
-              onCancel={() => setAssigning(false)}
-            />
-          )}
+            )}
+            {noteFor && (
+              <form
+                className="note-box"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  transition(noteFor);
+                }}
+              >
+                <textarea autoFocus aria-label="Note" placeholder="Why it is going back" value={note} onChange={(e) => setNote(e.target.value)} rows={2} />
+                <div className="note-actions">
+                  <button className="primary small-btn" disabled={!note.trim() || busy}>
+                    {TRANSITION_LABEL[noteFor](it.status)} with note
+                  </button>
+                  <button type="button" className="link" onClick={() => setNoteFor(null)}>
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            )}
+            {tools && (
+              <div className="side-tools">
+                {can("assign") && (
+                  <button className="ghost small-btn" onClick={() => setAssigning((v) => !v)} disabled={busy}>
+                    <Icon name="users" /> Reassign
+                  </button>
+                )}
+                {can("release") && (
+                  <button
+                    className="ghost small-btn"
+                    onClick={() => versioned("/release", {}, () => ({ assignee_id: null, assignee_name: null }))}
+                    disabled={busy}
+                  >
+                    Release
+                  </button>
+                )}
+                {can("edit") && !editing && (
+                  <button className="ghost small-btn" onClick={() => setEditing(true)}>
+                    Edit
+                  </button>
+                )}
+              </div>
+            )}
+            {assigning && (
+              <AssignPicker
+                teamId={it.team_id}
+                onPick={(u) => {
+                  setAssigning(false);
+                  versioned("/assign", { assignee_id: u.id }, () => ({ assignee_id: u.id, assignee_name: u.name }));
+                }}
+                onCancel={() => setAssigning(false)}
+              />
+            )}
+          </section>
 
-          <dl className="props">
-            <dt>Status</dt>
-            <dd>
-              <Status value={it.status} />
-            </dd>
-            <dt>Priority</dt>
-            <dd>
-              <Priority value={it.priority} />
-            </dd>
-            <dt>Assignee</dt>
-            <dd>
-              <Person name={it.assignee_name} muted="Unassigned" />
-            </dd>
-            <dt>Reporter</dt>
-            <dd>
-              <Person name={it.reporter_name} />
-            </dd>
-            <dt>Team</dt>
-            <dd>{it.team_name}</dd>
-            <dt>Due</dt>
-            <dd>{it.due_at ? new Date(it.due_at).toLocaleDateString() : <span className="muted">None</span>}</dd>
-            <dt>Created</dt>
-            <dd>
-              <Time iso={it.created_at} />
-            </dd>
-            <dt>Updated</dt>
-            <dd>
-              <Time iso={it.updated_at} />
-            </dd>
-            <dt>Version</dt>
-            <dd className="muted">{it.version}</dd>
-          </dl>
+          <section className="side-card">
+            <h2>Details</h2>
+            <dl className="props">
+              <dt>Status</dt>
+              <dd>
+                <Status value={it.status} />
+              </dd>
+              <dt>Priority</dt>
+              <dd>
+                <Priority value={it.priority} />
+              </dd>
+              <dt>Assignee</dt>
+              <dd>
+                <Person name={it.assignee_name} muted="Unassigned" />
+              </dd>
+              <dt>Reporter</dt>
+              <dd>
+                <Person name={it.reporter_name} />
+              </dd>
+              <dt>Team</dt>
+              <dd className="crumb-team">
+                <span className="team-swatch" style={{ background: teamSwatch(it.team_name) }} />
+                {it.team_name}
+              </dd>
+              <dt>Due</dt>
+              <dd className={overdue ? "late-text" : ""}>
+                {it.due_at ? (
+                  new Date(it.due_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
+                ) : (
+                  <span className="muted">None</span>
+                )}
+              </dd>
+              <dt>Created</dt>
+              <dd>
+                <Time iso={it.created_at} />
+              </dd>
+              <dt>Updated</dt>
+              <dd>
+                <Time iso={it.updated_at} />
+              </dd>
+              <dt>Version</dt>
+              <dd className="muted">{it.version}</dd>
+            </dl>
+          </section>
         </aside>
       </div>
     </div>
   );
+}
+
+// One sentence on where the item stands, so the buttons under it make sense.
+function nextHint(it, canAct, primary) {
+  if (!canAct) {
+    return FINISHED.includes(it.status) ? "This work is finished." : "You can follow this item but not change it.";
+  }
+  switch (it.status) {
+    case "new":
+      return "Nobody has looked at this yet. Claim it to start, or triage it for the team.";
+    case "triaged":
+      return "Ready for someone to pick up.";
+    case "in_progress":
+      return it.assignee_name ? `${it.assignee_name} is working on it.` : "Work has started.";
+    case "awaiting_approval":
+      return primary === "approved"
+        ? "Waiting for your approval. Approve it, or reject it with a note."
+        : "Waiting for a team lead to approve it or send it back.";
+    case "approved":
+      return "Approved. Resolve it once the work is done.";
+    case "resolved":
+      return "Resolved. Close it once the requester confirms.";
+    default:
+      return "Closed. Reopen it if the problem comes back.";
+  }
 }
 
 function EditForm({ it, canPriority, onSave, onCancel, busy }) {
@@ -363,24 +478,25 @@ function EditForm({ it, canPriority, onSave, onCancel, busy }) {
         else onCancel();
       }}
     >
-      <input value={form.title} onChange={set("title")} required maxLength={200} />
-      <textarea value={form.description} onChange={set("description")} rows={4} />
+      <input aria-label="Title" value={form.title} onChange={set("title")} required maxLength={200} />
+      <textarea aria-label="Description" value={form.description} onChange={set("description")} rows={4} />
       <div className="new-item-row">
         {canPriority && (
-          <select value={form.priority} onChange={set("priority")}>
+          <select aria-label="Priority" value={form.priority} onChange={set("priority")}>
             {PRIORITY_LABEL.map((l, i) => (
               <option key={i} value={i}>
-                P{i} {l}
+                {l}
               </option>
             ))}
           </select>
         )}
-        <input type="date" value={form.due_at} onChange={set("due_at")} />
+        <input aria-label="Due date" type="date" value={form.due_at} onChange={set("due_at")} />
+        <span className="grow" />
+        <button type="button" onClick={onCancel}>
+          Cancel
+        </button>
         <button className="primary" disabled={busy}>
           Save changes
-        </button>
-        <button type="button" className="link" onClick={onCancel}>
-          Cancel
         </button>
       </div>
     </form>
@@ -397,8 +513,8 @@ function AssignPicker({ teamId, onPick, onCancel }) {
         members.data.members
           .filter((m) => m.role !== "viewer")
           .map((m) => (
-            <button key={m.id} className="chip" onClick={() => onPick(m)}>
-              {m.name} <span className="role">{m.role}</span>
+            <button key={m.id} className="assign-option" onClick={() => onPick(m)}>
+              <Person name={m.name} /> <span className="role">{m.role}</span>
             </button>
           ))}
       <button className="link" onClick={onCancel}>
