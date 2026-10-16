@@ -167,7 +167,8 @@ before testing again.
   with `docker compose up -d --scale worker=2`.
 - **The UI is optimistic.** Actions show their result at once and roll back if the server
   refuses. A 409 becomes a sentence about who changed what, with Reload and Retry. The item
-  page, inbox and notification count refresh every 15 seconds.
+  page and the notification count update live: each tab holds one server-sent events stream,
+  and polling every 15 seconds takes over if the stream drops.
 
 The reasoning behind each choice, and what was traded away, is in
 [ENGINEERING_DECISIONS.md](ENGINEERING_DECISIONS.md). What is missing or weak is in

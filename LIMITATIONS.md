@@ -26,8 +26,10 @@ Kept current with every PR. Each line says what is missing and why it was left o
   URL each time, which is not registered with Google.
 - Preview deployments have no database, so only their pages can be reviewed there. Giving each
   preview its own copy of the database is a Neon setting not yet turned on.
-- No live push. The item page polls every 15 seconds; a change by someone else shows up on
-  the next poll or on the next write (as a 409).
+- Live updates check for changes every 1.5 seconds per open tab rather than being pushed by the
+  database, because Postgres notifications do not pass through Neon's pooler. Each open tab costs
+  one small query per check. Only the open item and the notification count update live; the
+  inbox and the list refresh on those events or once a minute.
 - Notifications are in-app only. No email or chat delivery.
 - No attachments, no bulk edits, no soft delete.
 - Invitations are not emailed. The admin creates the person and tells them to sign in with

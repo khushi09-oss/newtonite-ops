@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api } from "../api";
+import { pollEvery, useLiveConnected } from "../live";
 import { Person, Priority, Status, Time } from "../ui";
 
 const BUCKETS = [
@@ -26,7 +27,8 @@ export function ItemRow({ item }) {
 }
 
 export default function Inbox() {
-  const q = useQuery({ queryKey: ["inbox"], queryFn: () => api("/inbox"), refetchInterval: 15000 });
+  const live = useLiveConnected();
+  const q = useQuery({ queryKey: ["inbox"], queryFn: () => api("/inbox"), refetchInterval: pollEvery(live) });
   if (q.isPending) return <div className="page-loading">Loading your inbox</div>;
   if (q.isError) return <div className="error">Could not load the inbox: {q.error.message}</div>;
 

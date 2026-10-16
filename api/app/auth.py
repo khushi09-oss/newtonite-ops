@@ -55,17 +55,24 @@ def session_id(request: Request) -> str:
         raise HTTPException(401, "session is invalid or expired")
 
 
+# The one definition of a live session: unrevoked, unexpired, and its user still active.
+LIVE_SESSION = (
+    "select {cols} from sessions s join users u on u.id = s.user_id"
+    " where s.id = %s and s.revoked_at is null and s.expires_at > now()"
+    " and u.deactivated_at is null"
+)
+
+
+def session_user(conn, sid) -> dict | None:
+    return conn.execute(LIVE_SESSION.format(cols=USER_COLS), (sid,)).fetchone()
+
+
 def current_user(request: Request) -> dict:
     """The signed-in user, or 401. Every route that needs an actor depends on this. Writes are also
     rate limited per user here, so no mutating route can forget it."""
     sid = session_id(request)
     with db.pool.connection() as conn:
-        user = conn.execute(
-            f"select {USER_COLS} from sessions s join users u on u.id = s.user_id"
-            " where s.id = %s and s.revoked_at is null and s.expires_at > now()"
-            " and u.deactivated_at is null",
-            (sid,),
-        ).fetchone()
+        user = session_user(conn, sid)
     if user is None:
         raise HTTPException(401, "session has ended; sign in again")
     if request.method not in ("GET", "HEAD", "OPTIONS"):

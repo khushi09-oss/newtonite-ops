@@ -333,3 +333,23 @@ behind `CRON_SECRET` and only in demo mode, empties every table and loads the se
 Accepted because the assignment needs a site to try, and a second, empty production deployment
 would show reviewers nothing. Running real work means a second deployment with demo mode off,
 which the README describes.
+
+## D-20 Live updates are server-sent events fed by a short indexed check, with polling behind them
+
+**Situation.** Polling every 15 seconds meant someone could act on a change made seconds earlier
+and only learn about it from a 409. The build plan listed live push as the first extra.
+
+**Decision.** Each browser tab opens one server-sent events stream at `/stream`, naming the item
+it has open. Every 1.5 seconds the server runs one query that re-checks the session and the
+item access and reads the item's version and the user's newest notification id, and sends an
+event when either moved. The browser then refetches through the same queries as before, so the
+stream carries no data of its own and cannot drift from the API. Signing out, deactivation or
+leaving the team ends the stream. It closes itself at 240 seconds, under Vercel's 300 second
+limit, and the browser reconnects; while it is up, pages poll once a minute instead of every 15
+seconds.
+
+**Trade-off.** A check per open tab every 1.5 seconds, instead of a push from the database.
+Rejected Postgres LISTEN because Neon's transaction pooler does not carry it, and a direct
+connection held open for every tab would grow connections with the number of readers rather
+than with the work being done. Rejected WebSockets because nothing flows from the browser to the
+server on this channel.
