@@ -41,6 +41,8 @@ Kept current with every PR. Each line says what is missing and why it was left o
 - Item keys count per team (`RSK-1204`), so creating items on one team takes turns on that team's
   counter row. That is invisible at the pace people type; a bulk import into one team would queue.
 - A team's code is set when the team is created and cannot be edited yet.
+- The eight standing teams each have their own colour. A team created later takes a colour from
+  a hash of its name and may share one with another team; there is no colour picker.
 - Full-text search is Postgres `tsvector` with English stemming. No fuzzy matching, no
   relevance tuning.
 - A background job that fails eight times stops and waits for an admin to retry it from the Admin

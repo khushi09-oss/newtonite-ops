@@ -148,6 +148,17 @@ def test_admin_cannot_lock_themselves_out(client, login):
     assert client.get("/me").json()["is_admin"] is True
 
 
+def test_admin_log_names_the_person_and_team_a_change_was_about(client, team):
+    person = invite(client, team)
+    r = client.put(f"/admin/teams/{team['id']}/members/{person['id']}", json={"role": "lead"})
+    assert r.status_code == 200, r.text
+    log = client.get("/admin/events").json()["events"]
+    mine = [e for e in log if e["kind"] == "role_set" and e["target"]["user_id"] == person["id"]]
+    change = mine[0]
+    assert change["target_user_name"] == "New Person" and change["target_team_name"] == team["name"]
+    assert change["target"]["before"] == "member" and change["target"]["after"] == "lead"
+
+
 def test_admin_actions_are_recorded_and_append_only(client, team):
     person = invite(client, team)
     log = client.get("/admin/events").json()["events"]
