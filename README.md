@@ -219,7 +219,8 @@ name, and a team and role, then choose **Invite**. Tell them to sign in with Goo
 emailed. From the same page you can create teams, change roles, remove people from a team, and
 deactivate or reactivate anyone. Removing or deactivating someone releases their open items,
 and each release appears in that item's history. Every admin change is listed at the bottom of
-the page and cannot be edited afterwards.
+the page and cannot be edited afterwards. The same page lists background jobs that failed eight
+times, with their errors, and retries them.
 
 ### Setting up Google sign-in
 
@@ -259,9 +260,10 @@ given to a different Google account, sign-in is refused.
 
 ## What comes next
 
-- **Live updates.** Server-sent events from the outbox, so a change shows up at once rather
-  than on the next poll. Polling stays as the fallback.
-- **Operations.** A screen to inspect and retry dead outbox jobs, a production build of the
-  web app, and metrics on queue depth and conflict rate.
-- **At larger scale.** Partition the history table by time, move search to a dedicated engine
-  only if relevance becomes the complaint, and replace the dev login with real sign-on.
+- **Organisations.** Today one deployment is one organisation. Letting anyone create an
+  organisation on a shared site means scoping every team, item and query to it, with tests that
+  try to cross between organisations on every route.
+- **Operations.** Alerts when a background job fails for good, and metrics on queue depth and
+  conflict rate. Email delivery would be one more outbox handler.
+- **At larger scale.** Partition the history table by time, give each preview deploy its own
+  database copy, and move search to a dedicated engine only if relevance becomes the complaint.

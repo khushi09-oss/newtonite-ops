@@ -264,3 +264,55 @@ def admin_log(admin: dict = Depends(require_admin), limit: int = Query(50, ge=1,
             (limit + 1,),
         ).fetchall()
     return {"events": rows[:limit], "capped": len(rows) > limit}
+
+
+JOB_STATUSES = ("pending", "done", "dead")
+
+
+@router.get("/jobs")
+def list_jobs(
+    admin: dict = Depends(require_admin),
+    status: str = "dead",
+    limit: int = Query(50, ge=1, le=LIST_CAP),
+):
+    """Background jobs by status, newest first, with what each was about and why it last failed."""
+    if status not in JOB_STATUSES:
+        raise HTTPException(422, f"status must be one of {', '.join(JOB_STATUSES)}")
+    with db.pool.connection() as conn:
+        counts = {
+            r["status"]: r["n"]
+            for r in conn.execute("select status, count(*) as n from outbox group by status")
+        }
+        rows = conn.execute(
+            "select o.id, o.kind, o.status, o.attempts, o.last_error, o.created_at,"
+            " o.next_attempt_at, o.processed_at, o.payload->>'kind' as event_kind,"
+            " w.id as item_id, w.title as item_title"
+            " from outbox o left join work_items w on w.id::text = o.payload->>'item_id'"
+            " where o.status = %s order by o.id desc limit %s",
+            (status, limit + 1),
+        ).fetchall()
+    return {
+        "counts": {s: counts.get(s, 0) for s in JOB_STATUSES},
+        "jobs": rows[:limit],
+        "capped": len(rows) > limit,
+    }
+
+
+@router.post("/jobs/{job_id}/retry")
+def retry_job(job_id: int, admin: dict = Depends(require_admin)):
+    """Give a dead job a fresh set of attempts. One conditional update, so two admins retrying at
+    once cannot both succeed; the second gets 409. Safe because every handler is idempotent."""
+    with db.pool.connection() as conn, conn.transaction():
+        row = conn.execute(
+            "update outbox set status = 'pending', attempts = 0, next_attempt_at = now()"
+            " where id = %s and status = 'dead' returning id, kind, last_error",
+            (job_id,),
+        ).fetchone()
+        if row is None:
+            if conn.execute("select 1 from outbox where id = %s", (job_id,)).fetchone() is None:
+                raise HTTPException(404, "job not found")
+            raise HTTPException(409, "That job is not failed any more; someone may have retried it")
+        record(
+            conn, admin, "job_retried", job_id=job_id, job_kind=row["kind"], error=row["last_error"]
+        )
+    return {"id": job_id, "status": "pending"}

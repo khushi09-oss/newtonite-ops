@@ -5,7 +5,7 @@ and the rows are simply picked up again; handlers are idempotent, so that is saf
 
 import logging
 
-from app import db
+from app import db, limits
 from app.notifications import notify
 
 log = logging.getLogger("outbox")
@@ -56,8 +56,23 @@ def process_batch(conn, handlers=HANDLERS, limit: int = BATCH) -> int:
     return len(rows)
 
 
+DONE_KEPT_FOR = "7 days"
+
+
 def purge_idempotency_keys(conn) -> None:
     conn.execute("delete from idempotency_keys where created_at < now() - interval '24 hours'")
+
+
+def housekeeping(conn) -> None:
+    """Everything that keeps tables from growing without bound. Run by the worker every minute
+    and by the daily scheduled sweep, so it also happens where no worker runs. Failed jobs are
+    kept until someone retries them."""
+    purge_idempotency_keys(conn)
+    limits.purge(conn)
+    conn.execute(
+        f"delete from outbox where status = 'done' and processed_at < now() - interval '{DONE_KEPT_FOR}'"
+    )
+    warn_about_unknown_kinds(conn)
 
 
 def warn_about_unknown_kinds(conn, handlers=HANDLERS) -> None:
