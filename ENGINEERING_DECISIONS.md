@@ -2,6 +2,14 @@
 
 Append-only. Each entry: the situation, the decision, the trade-off accepted. Newest last.
 
+If you read five, read these. The rest refine them as the build went on.
+
+- **D-01** History lives in an append-only table written in the same transaction as the change.
+- **D-02** Every write checks a version, and a claim is one atomic statement.
+- **D-03** Repeated requests are answered from stored responses.
+- **D-04** Secondary work goes through a transactional outbox and a polling worker, not a broker.
+- **D-05** Authorization is part of every query, and outsiders get 404.
+
 ## D-01 Current state in the row, history in an append-only table, written in one transaction
 
 **Situation.** The brief wants every change to be visible later: who changed the owner, when,
