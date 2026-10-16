@@ -175,7 +175,9 @@ before testing again.
   Every item has a short key from its team, such as `RSK-1204` or `CMP-311`; searching for it finds
   the item directly. The item list can also show only overdue work.
 - **Lists stay fast.** Nothing uses offset paging. The item list and each item's history page
-  by cursor. Every list is capped and says `capped: true` when there is more. Filters land on one composite index. Search uses a
+  by cursor. The items page groups by status: each group pages on its own cursor, and the counts
+  in its headers come from `GET /items/counts`, one grouped count on the same filters.
+  Every list is capped and says `capped: true` when there is more. Filters land on one composite index. Search uses a
   Postgres full-text index. The inbox is four small indexed queries.
 - **Async work is reliable.** The worker polls every two seconds and locks a batch so several
   workers can run side by side. It retries with exponential backoff and marks a job dead after

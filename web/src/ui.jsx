@@ -1,4 +1,5 @@
 // Small shared pieces: status and priority glyphs, people, relative time, and the words for events.
+import { Link } from "react-router-dom";
 
 export const STATUS_LABEL = {
   new: "New",
@@ -240,4 +241,49 @@ const TEAM_SWATCHES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#
 export function teamSwatch(name) {
   const h = [...(name || "")].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 3);
   return TEAM_SWATCHES[h % TEAM_SWATCHES.length];
+}
+
+const OPEN_STATUSES = ["new", "triaged", "in_progress", "awaiting_approval", "approved"];
+
+// Only open work has a deadline worth showing. Past due reads in red, in days.
+export function DueTag({ item }) {
+  if (!item.due_at || !OPEN_STATUSES.includes(item.status)) return <span className="due" />;
+  const due = new Date(item.due_at);
+  const days = Math.round((due.getTime() - Date.now()) / 86400000);
+  const late = due.getTime() < Date.now();
+  const text = late
+    ? `${Math.max(1, -days)} d overdue`
+    : days === 0
+      ? "Due today"
+      : `Due ${due.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+  return (
+    <span className={`due ${late ? "late" : ""}`} title={due.toLocaleString()}>
+      {text}
+    </span>
+  );
+}
+
+// One line per item, the same on every list. Inside a status group the status is the group, so it hides.
+export function ItemRow({ item, showStatus = true }) {
+  return (
+    <Link to={`/items/${item.id}`} className={`irow ${showStatus ? "" : "no-status"}`}>
+      <Priority value={item.priority} compact />
+      <ItemKey teamKey={item.team_key} number={item.number} />
+      {showStatus && (
+        <span title={STATUS_LABEL[item.status]}>
+          <StatusIcon value={item.status} />
+        </span>
+      )}
+      <span className="irow-title">{item.title}</span>
+      <DueTag item={item} />
+      <span className="irow-team">
+        <span className="team-swatch" style={{ background: teamSwatch(item.team_name) }} />
+        {item.team_name}
+      </span>
+      <span title={item.assignee_name || "Unassigned"} className="irow-who">
+        {item.assignee_name ? <Avatar name={item.assignee_name} /> : <span className="avatar-empty" />}
+      </span>
+      <Time iso={item.updated_at} />
+    </Link>
+  );
 }

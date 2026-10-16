@@ -251,6 +251,28 @@ def test_list_uses_index(login, team_id):
     assert "Seq Scan on work_items" not in plan, plan
 
 
+def test_status_counts_match_the_list_and_stay_inside_my_teams(client, login, team_id):
+    login("ben.okafor@newtonite.dev")  # leads Compliance, views Risk
+    title = f"Counted once {uuid4()}"
+    r = client.post(
+        "/items",
+        json={"team_id": str(team_id("Compliance")), "kind": "task", "title": title},
+        headers={"Idempotency-Key": str(uuid4())},
+    )
+    assert r.status_code == 201, r.text
+    counts = client.get("/items/counts", params={"q": f'"{title}"'}).json()["counts"]
+    assert counts == {s: (1 if s == "new" else 0) for s in counts} and len(counts) == 7
+    outside = client.get("/items/counts", params={"team": str(team_id("Payments"))}).json()
+    assert set(outside["counts"].values()) == {0}
+    mine = sum(client.get("/items/counts").json()["counts"].values())
+    with db.pool.connection() as conn:
+        expected = conn.execute(
+            "select count(*) as n from work_items where team_id = any(%s)",
+            ([team_id("Compliance"), team_id("Risk")],),
+        ).fetchone()["n"]
+    assert mine == expected
+
+
 def test_team_members_hidden_from_outsiders(client, login, team_id):
     login("ben.okafor@newtonite.dev")
     assert client.get(f"/teams/{team_id('Payments')}/members").status_code == 404
