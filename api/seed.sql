@@ -33,6 +33,8 @@ union all
 select t.id, u.id, 'viewer'
   from seed_users u join seed_teams t on t.n = (u.n + 3) % 8 + 1;
 
+-- Items. Teams take turns (i % 8) and titles advance once per round (i / 8), so every team gets
+-- every title and a search for any title phrase finds rows on every team.
 -- Items. Status is drawn with a skew toward closed; the status index decides how many transition events exist.
 create temp table seed_items on commit drop as
 with base as (
@@ -81,7 +83,7 @@ insert into work_items (id, team_id, kind, title, description, status, priority,
 select id, team_id, kind,
        (array['Refund not received', 'Duplicate charge', 'Login loop on mobile', 'KYC document rejected',
               'Payout delayed', 'Chargeback dispute', 'Service degraded in eu-west', 'Account locked after migration',
-              'Invoice total wrong', 'Data export request'])[(i - 1) % 10 + 1] || ' (' || kind || ' ' || i || ')',
+              'Invoice total wrong', 'Data export request'])[((i - 1) / 8) % 10 + 1] || ' (' || kind || ' ' || i || ')',
        'Reported through the ops desk. Item ' || i || ' for the ' ||
        (array['Payments', 'Compliance', 'Support', 'Incidents', 'Onboarding', 'Risk', 'Platform', 'Billing'])[team_n] ||
        ' team. Check the customer timeline and the ledger before acting.',
