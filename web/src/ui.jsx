@@ -238,8 +238,11 @@ export function DemoBanner() {
 
 // A fixed swatch per team, from the chart palette's categorical order, so a team keeps its colour.
 const TEAM_SWATCHES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"];
+// ponytail: the eight standing teams get one colour each; any other team hashes and may share one.
+// A colour column picked when a team is created is the upgrade.
+const SEEDED = { Payments: 0, Platform: 1, Risk: 2, Onboarding: 3, Support: 4, Billing: 5, Compliance: 6, Incidents: 7 };
 export function teamSwatch(name) {
-  const h = [...(name || "")].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 3);
+  const h = SEEDED[name] ?? [...(name || "")].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 3);
   return TEAM_SWATCHES[h % TEAM_SWATCHES.length];
 }
 

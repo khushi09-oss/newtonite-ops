@@ -280,8 +280,13 @@ def remove_member(team_id: UUID, user_id: UUID, admin: dict = Depends(require_ad
 def admin_log(admin: dict = Depends(require_admin), limit: int = Query(50, ge=1, le=LIST_CAP)):
     with db.pool.connection() as conn:
         rows = conn.execute(
-            "select e.id, e.kind, e.target, e.created_at, u.name as actor_name from admin_events e"
-            " join users u on u.id = e.actor_id order by e.id desc limit %s",
+            # Names for the person and team a change was about, so the log can say who and where.
+            "select e.id, e.kind, e.target, e.created_at, u.name as actor_name,"
+            " tu.name as target_user_name, tt.name as target_team_name from admin_events e"
+            " join users u on u.id = e.actor_id"
+            " left join users tu on tu.id = (e.target->>'user_id')::uuid"
+            " left join teams tt on tt.id = (e.target->>'team_id')::uuid"
+            " order by e.id desc limit %s",
             (limit + 1,),
         ).fetchall()
     return {"events": rows[:limit], "capped": len(rows) > limit}
