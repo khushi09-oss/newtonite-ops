@@ -2,9 +2,11 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 
-from app import auth, db
+from app import auth, db, items
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("app")
@@ -22,6 +24,15 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Newtonite Ops", lifespan=lifespan)
 app.include_router(auth.router)
+app.include_router(items.router)
+
+
+@app.exception_handler(items.Conflict)
+def stale_version(request: Request, exc: items.Conflict):
+    """409 with the current row and its recent history, so the client can show who changed what."""
+    with db.pool.connection() as conn:
+        events = items.recent_events(conn, exc.item["id"])
+    return JSONResponse(jsonable_encoder({"detail": "stale version", "current": exc.item, "events": events}), 409)
 
 
 @app.get("/health")

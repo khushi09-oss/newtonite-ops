@@ -39,6 +39,9 @@ Seeded emails are `first.last@newtonite.dev`; the first user is the global admin
 docker compose exec api python -m pytest -q
 ```
 
+The image carries its own copy of `api/`, so after editing code or tests run
+`docker compose up --build -d` before testing again.
+
 Tests run against real Postgres, not SQLite, because the claim race and the outbox depend on
 Postgres row locking.
 
