@@ -200,8 +200,12 @@ def _may(conn, user: dict, item_id: UUID, action: str, version: int | None = Non
 
 def _respond(conn, user: dict, item_id) -> dict:
     item = require_access(conn, user, item_id)
+    watching = conn.execute(
+        "select 1 from watchers where item_id = %s and user_id = %s", (item_id, user["id"])
+    ).fetchone()
     return {
         **item,
+        "watching": watching is not None,
         "allowed_actions": allowed_actions(user, item["role"], item),
         "events": recent_events(conn, item_id),
     }
@@ -452,3 +456,19 @@ def comment_item(
 
     with db.pool.connection() as conn, conn.transaction():
         return idempotent(conn, user, key, f"comment:{item_id}", body, run, status=201)
+
+
+@router.get("/teams/{team_id}/members")
+def team_members(team_id: UUID, user: dict = Depends(current_user)):
+    """Who can be assigned. The caller's own membership is part of the query, so outsiders get 404."""
+    with db.pool.connection() as conn:
+        rows = conn.execute(
+            "select u.id, u.name, m.role from team_members m join users u on u.id = m.user_id"
+            " where m.team_id = %(team)s and (%(admin)s or exists ("
+            "   select 1 from team_members me where me.team_id = %(team)s and me.user_id = %(me)s))"
+            " order by m.role, u.name limit %(limit)s",
+            {"team": team_id, "admin": user["is_admin"], "me": user["id"], "limit": LIST_CAP + 1},
+        ).fetchall()
+    if not rows:
+        raise HTTPException(404, "team not found")
+    return {"members": rows[:LIST_CAP], "capped": len(rows) > LIST_CAP}

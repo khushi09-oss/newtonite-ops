@@ -55,7 +55,8 @@ def list_notifications(
     cond = " and n.read_at is null" if unread else ""
     with db.pool.connection() as conn:
         rows = conn.execute(
-            "select n.id, n.read_at, n.created_at, e.kind, e.note, e.seq, e.item_id, w.title,"
+            "select n.id, n.read_at, n.created_at, e.kind, e.note, e.seq, e.before, e.after,"
+            " e.actor_id, e.item_id, w.title,"
             " u.name as actor_name"
             " from notifications n join work_item_events e on e.id = n.event_id"
             " join work_items w on w.id = e.item_id join users u on u.id = e.actor_id"

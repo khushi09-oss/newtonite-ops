@@ -105,6 +105,7 @@ def test_worker_delivers_to_watcher_and_the_list_shows_it(client, login, team_id
     unread = client.get("/notifications", params={"unread": True}).json()
     mine = [n for n in unread["notifications"] if n["item_id"] == item["id"]]
     assert mine and mine[0]["actor_name"] == "Finn Okafor" and mine[0]["note"] == "ping"
+    assert mine[0]["kind"] == "comment" and "before" in mine[0] and "after" in mine[0]
     assert client.post(f"/notifications/{mine[0]['id']}/read").status_code == 204
     unread = client.get("/notifications", params={"unread": True}).json()
     assert not [n for n in unread["notifications"] if n["id"] == mine[0]["id"]]

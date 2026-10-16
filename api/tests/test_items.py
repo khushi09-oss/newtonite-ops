@@ -249,3 +249,22 @@ def test_list_uses_index(login, team_id):
     sql, params = list_query(user, q="refund")
     plan = explain(sql, params)
     assert "Seq Scan on work_items" not in plan, plan
+
+
+def test_team_members_hidden_from_outsiders(client, login, team_id):
+    login("ben.okafor@newtonite.dev")
+    assert client.get(f"/teams/{team_id('Payments')}/members").status_code == 404
+    risk = client.get(f"/teams/{team_id('Risk')}/members")
+    assert risk.status_code == 200
+    assert risk.json()["capped"] is False
+    assert ("Finn Okafor", "lead") in {(m["name"], m["role"]) for m in risk.json()["members"]}
+
+
+def test_item_says_whether_i_watch_it(client, login):
+    login("ben.okafor@newtonite.dev")
+    iid = one_item("Risk")["id"]
+    assert client.get(f"/items/{iid}").json()["watching"] is False
+    assert client.post(f"/items/{iid}/watch").status_code == 204
+    assert client.get(f"/items/{iid}").json()["watching"] is True
+    assert client.delete(f"/items/{iid}/watch").status_code == 204
+    assert client.get(f"/items/{iid}").json()["watching"] is False
