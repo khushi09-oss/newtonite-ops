@@ -134,7 +134,7 @@ React + Vite + TanStack Query. Three routes:
 | 1 | [x] Seed script (SQL generate_series: 40 users, 8 teams, 20k items, 150k events), dev login, `/me` | `curl /me` with a seeded user works |
 | 2 | [x] `apply_change()`, `require_access`, transition table, `/items` list + get | every route writes through `apply_change`; EXPLAIN shows index scans |
 | 3 | [x] claim, release, assign, patch, transition, comments, events page, all version-checked | race test passes |
-| 4 | [ ] Idempotency dependency, outbox insert, worker, notifications, `/inbox` | worker survives a kill mid-batch and a second worker alongside |
+| 4 | [x] Idempotency dependency, outbox insert, worker, notifications, `/inbox` | worker survives a kill mid-batch and a second worker alongside |
 | 5 | [ ] React: inbox, list, detail, optimistic mutations, 409 banner, polling | two browser windows show the conflict |
 | 6 | [ ] Remaining tests | all green |
 | 7 | [ ] Docs pass: decisions, README, limitations, `scripts/demo_race.py` | a stranger can run it from the README |
