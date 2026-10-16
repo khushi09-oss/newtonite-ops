@@ -3,6 +3,7 @@ item route. Each mutation checks the action against allowed_actions() and writes
 
 import base64
 import json
+import re
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
@@ -24,7 +25,8 @@ LIST_CAP = 100
 # Columns the API returns. The tsvector stays in the database.
 COLS = (
     "w.id, w.team_id, w.kind, w.title, w.description, w.status, w.priority, w.reporter_id, w.assignee_id,"
-    " w.approval_requested_by, w.due_at, w.version, w.created_at, w.updated_at, w.last_activity_at"
+    " w.approval_requested_by, w.due_at, w.version, w.created_at, w.updated_at, w.last_activity_at,"
+    " w.number"
 )
 NAMES = " t.name as team_name, r.name as reporter_name, a.name as assignee_name"
 FROM = (
@@ -247,7 +249,11 @@ def list_query(
         if val is not None:
             where.append(f"{col} = %s")
             params.append(val)
-    if q:
+    key = re.fullmatch(r"\s*(?:ops-)?(\d+)\s*", q or "", re.IGNORECASE)
+    if key:  # "OPS-1234" or "1234" finds that item by its key, on the unique index
+        where.append("w.number = %s")
+        params.append(int(key.group(1)))
+    elif q:
         where.append("w.search @@ websearch_to_tsquery('english', %s)")
         params.append(q)
     if cursor:

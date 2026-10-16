@@ -9,7 +9,19 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from starlette.background import BackgroundTask
 
-from app import admin, auth, db, demo, google, inbox, items, notifications, outbox, stream
+from app import (
+    admin,
+    auth,
+    dashboard,
+    db,
+    demo,
+    google,
+    inbox,
+    items,
+    notifications,
+    outbox,
+    stream,
+)
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("app")
@@ -76,6 +88,7 @@ app.include_router(inbox.router)
 app.include_router(admin.router)
 app.include_router(demo.router)
 app.include_router(stream.router)
+app.include_router(dashboard.router)
 
 
 @app.exception_handler(items.Conflict)

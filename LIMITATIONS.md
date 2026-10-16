@@ -35,6 +35,10 @@ Kept current with every PR. Each line says what is missing and why it was left o
 - Invitations are not emailed. The admin creates the person and tells them to sign in with
   Google; there is no email delivery in the system.
 - Only admins manage people and teams. A team lead cannot invite someone to their own team.
+- The dashboard counts are computed on every request rather than kept as running totals. Each
+  is an index scan, so they stay quick at this size; at millions of items they would move to
+  counters updated in `apply_change()`.
+- Item keys (`OPS-1234`) are one sequence for the whole company, not per team.
 - Full-text search is Postgres `tsvector` with English stemming. No fuzzy matching, no
   relevance tuning.
 - A background job that fails eight times stops and waits for an admin to retry it from the Admin

@@ -61,7 +61,7 @@ with base as (
          case when r_priority < 0.05 then 0 when r_priority < 0.25 then 1 when r_priority < 0.75 then 2 else 3 end as priority
     from base
 )
-select s.i, s.id, s.team_n, t.id as team_id,
+select s.i, s.id, s.team_n, s.kind_n, t.id as team_id,
        (array['incident', 'customer_issue', 'payment', 'compliance', 'task'])[s.kind_n] as kind,
        (array['new', 'triaged', 'in_progress', 'awaiting_approval', 'approved', 'resolved', 'closed'])[s.status_n + 1] as status,
        s.status_n, s.priority, s.comments,
@@ -70,8 +70,15 @@ select s.i, s.id, s.team_n, t.id as team_id,
        case when s.status_n >= 2 then assignee.id end as assignee_id,
        lead.id as lead_id,
        s.created_at,
-       s.created_at + (now() - s.created_at) * random() as updated_at,
-       case when random() < 0.4 then s.created_at + (random() * interval '30 days') end as due_at
+       -- Open work was touched recently (about one item in seven has gone quiet for three days);
+       -- finished work stopped somewhere between its creation and now.
+       case when s.status_n < 5
+            then greatest(s.created_at, now() - (-ln(random())) * interval '1.5 days')
+            else s.created_at + (now() - s.created_at) * random() end as updated_at,
+       -- Open work is mostly due in the coming weeks, a few days overdue at worst for some.
+       case when random() < 0.4 then
+            case when s.status_n < 5 then now() + (random() * 30 - 4) * interval '1 day'
+                 else s.created_at + random() * interval '30 days' end end as due_at
   from shaped s
   join seed_teams t on t.n = s.team_n
   join seed_users reporter on reporter.n = s.team_n + 8 * s.r_reporter
@@ -81,16 +88,46 @@ select s.i, s.id, s.team_n, t.id as team_id,
 insert into work_items (id, team_id, kind, title, description, status, priority, reporter_id, assignee_id,
                         approval_requested_by, due_at, version, created_at, updated_at, last_activity_at)
 select id, team_id, kind,
-       (array['Refund not received', 'Duplicate charge', 'Login loop on mobile', 'KYC document rejected',
-              'Payout delayed', 'Chargeback dispute', 'Service degraded in eu-west', 'Account locked after migration',
-              'Invoice total wrong', 'Data export request'])[((i - 1) / 8) % 10 + 1] || ' (' || kind || ' ' || i || ')',
-       'Reported through the ops desk. Item ' || i || ' for the ' ||
+       -- One template per kind and round, filled with a company, an order number or a week, so the
+       -- titles read like real requests and still repeat enough for search to find each phrase.
+       replace(replace(replace(replace(
+         (array[
+           ['Elevated 5xx on the checkout API in {r}', 'Webhook deliveries delayed for {c}',
+            'Card authorisation latency above two seconds in {r}', 'Settlement file missing for week {w}',
+            'Status page shows degraded for {c}', 'Spike in failed sign-ins from {r}'],
+           ['Refund not received for order #{n}', '{c} cannot sign in after a password reset',
+            'Invoice {n} shows the wrong total', '{c} asks to close their account',
+            'Duplicate email receipts for order #{n}', 'Card declined at checkout for {c}'],
+           ['Payout to {c} delayed by three days', 'Duplicate charge on order #{n}',
+            'Chargeback opened by {c}', 'Refund stuck in pending for #{n}',
+            'Exchange rate mismatch on payout {n}', 'Unmatched incoming transfer from {c}'],
+           ['KYC documents rejected for {c}', 'Sanctions screening hit on {c}',
+            'Data export request from {c}', 'Annual AML review for {c}',
+            'Erasure request #{n}', 'Proof of address expired for {c}'],
+           ['Rotate API keys for {c}', 'Approve a limit increase for {c}',
+            'Move {c} to the new pricing plan', 'Reconcile the ledger for week {w}',
+            'Update the refund wording for {c}', 'Migrate {c} to the {r} data region']
+         ])[kind_n][((i - 1) / 40) % 6 + 1],
+         '{c}', (array['Northwind Retail', 'Aster Labs', 'Bluebell Foods', 'Kestrel Travel', 'Orbit Media',
+                       'Juniper Health', 'Harbor Logistics', 'Quill Studio', 'Maple Pharmacy', 'Summit Gear',
+                       'Lumen Energy', 'Fable Books'])[(i * 7) % 12 + 1]),
+         '{n}', (40000 + i)::text),
+         '{w}', ((i % 52) + 1)::text),
+         '{r}', (array['eu-west', 'us-east', 'ap-south', 'eu-central'])[(i / 5) % 4 + 1]),
+       (array[
+         'Customers started reporting this through support. Logs and the affected accounts are linked in the thread.',
+         'Raised by the customer success team after two follow-ups. The customer expects an update today.',
+         'Spotted in the daily reconciliation. The amounts and references are in the attached report.',
+         'Flagged by the compliance desk. The regulator deadline is in the due date.',
+         'Routine work from the weekly ops review. Check the runbook before starting.'
+       ])[kind_n] || ' Owner: the ' ||
        (array['Payments', 'Compliance', 'Support', 'Incidents', 'Onboarding', 'Risk', 'Platform', 'Billing'])[team_n] ||
-       ' team. Check the customer timeline and the ledger before acting.',
+       ' team.',
        status, priority, reporter_id, assignee_id,
        case when status = 'awaiting_approval' then assignee_id end,
        due_at, event_count, created_at, updated_at, updated_at
-  from seed_items;
+  from seed_items
+ order by i;  -- keys follow i, so neighbouring keys always differ in kind and title
 
 -- History. seq 1 is creation, seq 2..status_n+1 are the transitions along the chain, the rest are comments.
 insert into work_item_events (item_id, seq, actor_id, kind, before, after, note, created_at)

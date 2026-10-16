@@ -169,6 +169,10 @@ before testing again.
 - **Authorization in the query.** Every item query joins the caller's team membership, so an
   outsider's request finds nothing and gets 404. What a member may do is one function,
   `allowed_actions()`. Routes check it and the UI draws its buttons from it.
+- **A dashboard per person.** `GET /dashboard` returns what needs you (assigned, awaiting your
+  approval, urgent and unclaimed, overdue, quiet), open work by team and status, created against
+  resolved over 14 days, and recent activity, all scoped to your teams and each on an index.
+  Every item has a short key such as `OPS-1234`; searching for it finds the item directly.
 - **Lists stay fast.** Nothing uses offset paging. The item list and each item's history page
   by cursor. Every list is capped and says `capped: true` when there is more. Filters land on one composite index. Search uses a
   Postgres full-text index. The inbox is four small indexed queries.

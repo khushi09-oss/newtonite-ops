@@ -372,3 +372,18 @@ purged.
 **Trade-off.** A person has to notice and act; there is no alert yet and no automatic retry
 after the eighth failure. Accepted because a job that has failed eight times with backoff usually
 needs something fixed first, and retrying it blindly would only fail again.
+
+## D-22 The dashboard is a few indexed queries, scoped to the caller's teams
+
+**Situation.** The home page should say at a glance what needs me and how my teams' work is
+moving, without a reporting pipeline and without scanning 20,000 items and 150,000 events.
+
+**Decision.** `GET /dashboard` runs five queries, each shaped for an index: counts of what needs
+me, open work by team and status, items created per day, items resolved per day (status events
+on an index by time), and the latest events on my teams. Migration 006 adds the indexes they
+need, and a test runs EXPLAIN on each to make sure none scans a whole table. Every item also
+gets a sequential number shown as `OPS-1234`, which people can say aloud and search for.
+
+**Trade-off.** Counts are computed on every load instead of maintained as totals, which keeps
+them always correct and adds no write cost. If the tables grew by orders of magnitude, the
+counts would move to totals kept by `apply_change()` in the same transaction as each change.
