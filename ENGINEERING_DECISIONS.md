@@ -275,3 +275,22 @@ credentials and needs no email delivery for resets or verification. Rejected Cle
 production instance needs a domain we own and adds a second user store to keep in step.
 Rejected app-stored passwords because resets and verification need email delivery we do not
 have.
+
+## D-17 Admins manage people and teams, and leaving releases work through the normal write path
+
+**Situation.** With real sign-in, someone has to decide who gets in and on which teams. People
+also leave teams and the company while they still own open items.
+
+**Decision.** A global admin invites people by email with their teams and roles, creates
+teams, changes roles, removes members, and deactivates or reactivates people. Non-admins get
+404 on every admin route. Admins cannot demote or deactivate themselves, so the acting admin
+always remains. Deactivation revokes every session at once. Removing someone from a team, or
+deactivating them, releases each open item they own through `apply_change()`, so the release
+is a normal history event with a note saying why. Every admin action is written to an
+append-only `admin_events` table, guarded by the same trigger as item history.
+
+**Trade-off.** Team leads cannot manage their own team, which puts every change through an
+admin. Accepted for a first version because it keeps one place to look when access is wrong.
+Releasing work on removal surprises nobody who reads the history, but it means someone has to
+pick the items up again; the alternative, leaving them owned by someone who can no longer see
+them, hides them instead.

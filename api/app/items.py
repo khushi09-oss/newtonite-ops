@@ -399,7 +399,8 @@ def assign_item(item_id: UUID, body: Assign, user: dict = Depends(current_user))
         item = _may(conn, user, item_id, "assign", body.version)
         ok = conn.execute(
             "select 1 from team_members m join users u on u.id = m.user_id"
-            " where m.team_id = %s and m.user_id = %s and (m.role <> 'viewer' or u.is_admin)",
+            " where m.team_id = %s and m.user_id = %s and (m.role <> 'viewer' or u.is_admin)"
+            " and u.deactivated_at is null",
             (item["team_id"], body.assignee_id),
         ).fetchone()
         if ok is None:
@@ -460,15 +461,19 @@ def comment_item(
 
 @router.get("/teams/{team_id}/members")
 def team_members(team_id: UUID, user: dict = Depends(current_user)):
-    """Who can be assigned. The caller's own membership is part of the query, so outsiders get 404."""
+    """Who can be assigned: active people on the team. The caller's own membership is checked in the
+    query, so outsiders get 404; a team whose members are all deactivated is an empty list."""
     with db.pool.connection() as conn:
+        visible = conn.execute(
+            "select 1 from teams t where t.id = %(team)s and (%(admin)s or exists ("
+            "   select 1 from team_members me where me.team_id = t.id and me.user_id = %(me)s))",
+            {"team": team_id, "admin": user["is_admin"], "me": user["id"]},
+        ).fetchone()
+        if visible is None:
+            raise HTTPException(404, "team not found")
         rows = conn.execute(
             "select u.id, u.name, m.role from team_members m join users u on u.id = m.user_id"
-            " where m.team_id = %(team)s and (%(admin)s or exists ("
-            "   select 1 from team_members me where me.team_id = %(team)s and me.user_id = %(me)s))"
-            " order by m.role, u.name limit %(limit)s",
-            {"team": team_id, "admin": user["is_admin"], "me": user["id"], "limit": LIST_CAP + 1},
+            " where m.team_id = %s and u.deactivated_at is null order by m.role, u.name limit %s",
+            (team_id, LIST_CAP + 1),
         ).fetchall()
-    if not rows:
-        raise HTTPException(404, "team not found")
     return {"members": rows[:LIST_CAP], "capped": len(rows) > LIST_CAP}

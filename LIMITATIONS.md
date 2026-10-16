@@ -19,7 +19,10 @@ Kept current with every PR. Each line says what is missing and why it was left o
 - No live push. The item page polls every 15 seconds; a change by someone else shows up on
   the next poll or on the next write (as a 409).
 - Notifications are in-app only. No email or chat delivery.
-- No attachments, no bulk edits, no soft delete, no role editor. Roles are seeded.
+- No attachments, no bulk edits, no soft delete.
+- Invitations are not emailed. The admin creates the person and tells them to sign in with
+  Google; there is no email delivery in the system.
+- Only admins manage people and teams. A team lead cannot invite someone to their own team.
 - Full-text search is Postgres `tsvector` with English stemming. No fuzzy matching, no
   relevance tuning.
 - Dead-lettered outbox rows need a human; there is no retry button yet.
