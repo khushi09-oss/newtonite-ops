@@ -19,7 +19,7 @@ docker compose up --build
 | Service | URL |
 |---|---|
 | API | http://localhost:8000 (OpenAPI at /docs) |
-| Web | http://localhost:5173 |
+| Web | http://localhost:5173 (first start installs packages, about a minute) |
 | Postgres | localhost:5432 |
 
 A worker container polls the outbox and turns item events into notifications. Scale it with
@@ -35,6 +35,15 @@ curl -b jar localhost:8000/me
 ```
 
 Seeded emails are `first.last@newtonite.dev`; the first user is the global admin.
+
+## Try the conflict
+
+1. Open http://localhost:5173 in two browsers, or one normal and one private window.
+2. Sign in as the Risk member in one and the Risk lead in the other, using the buttons on
+   the sign-in screen.
+3. Open the same unclaimed Risk item in both. Raise its priority as the lead.
+4. Click Triage as the member without reloading. The change is rolled back and a strip says who
+   changed what. Retry applies it on top of the new version.
 
 ## Run the tests
 
@@ -59,7 +68,7 @@ Postgres row locking.
 | `api/app/idempotency.py` | `Idempotency-Key` handling: stored responses, replay, mismatch refusal |
 | `api/app/notifications.py` | Watchers, the notification handler, the notification routes |
 | `api/tests/` | Tests named after the risk they guard |
-| `web/` | React + Vite frontend |
+| `web/` | React + Vite + TanStack Query frontend: inbox, items list, item page, notifications |
 | `ENGINEERING_DECISIONS.md` | The six decisions and their trade-offs |
 | `LIMITATIONS.md` | What is known to be missing or weak |
 

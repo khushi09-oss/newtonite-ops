@@ -4,6 +4,8 @@ Kept current with every PR. Each line says what is missing and why it was left o
 
 - No real sign-on. Dev login against seeded users; the session cookie is signed but there is
   no password, no SSO, no session revocation list.
+- The web app runs on the Vite dev server inside compose. There is no production build or
+  static hosting set up.
 - No live push. The item page polls every 15 seconds; a change by someone else shows up on
   the next poll or on the next write (as a 409).
 - Notifications are in-app only. No email or chat delivery.

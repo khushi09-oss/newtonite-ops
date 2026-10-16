@@ -208,3 +208,22 @@ at 50 and says so.
 
 **Trade-off.** Five round trips instead of one, each under a millisecond on this data. No
 paging inside a bucket; the list page with filters is where to go for more than 50.
+
+## D-14 The UI is optimistic, and a 409 becomes a sentence instead of an error
+
+**Situation.** Most clicks succeed, so waiting for the server makes the UI feel slow. But when
+a click loses (someone else claimed it, changed the priority, commented), the user must see
+what happened and decide, not be told "something went wrong".
+
+**Decision.** Every item mutation runs through one TanStack Query mutation. `onMutate` applies
+the expected result to the cached item and keeps the previous copy. Success replaces the cache
+with the server's response. Any error restores the previous copy. A 409 shows a strip above the
+item built from the server's newest event: "Changed by (name) just now: priority P1 to P0. Your
+change was not saved." with Reload and Retry on the new version. Buttons come from
+`allowed_actions`, so the UI never offers what the server would refuse. The browser talks to
+`/api` on its own origin and Vite forwards it, so the session cookie needs no CORS rules. The
+item, inbox and notification count refetch every 15 seconds.
+
+**Trade-off.** For about 100 milliseconds a user can see a result that the server then rolls
+back. That is the honest cost of feeling fast; the strip explains the rollback. Polling is
+simple and survives restarts, at the price of up to 15 seconds of staleness between writes.
