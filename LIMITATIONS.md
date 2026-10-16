@@ -11,3 +11,5 @@ Kept current with every PR. Each line says what is missing and why it was left o
 - Full-text search is Postgres `tsvector` with English stemming. No fuzzy matching, no
   relevance tuning.
 - Dead-lettered outbox rows need a human; there is no retry button yet.
+- The seed only loads into an empty database. To reseed, drop the Postgres volume
+  (`docker compose down -v`) and start again.

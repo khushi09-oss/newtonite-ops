@@ -1,4 +1,4 @@
-"""One connection pool, one migration runner. Raw SQL via psycopg 3."""
+"""One connection pool, one migration runner, one seed runner. Raw SQL via psycopg 3."""
 
 import os
 from pathlib import Path
@@ -8,6 +8,7 @@ from psycopg_pool import ConnectionPool
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://ops:ops@localhost:5432/ops")
 MIGRATIONS = Path(__file__).resolve().parent.parent / "migrations"
+SEED = Path(__file__).resolve().parent.parent / "seed.sql"
 
 pool = ConnectionPool(DATABASE_URL, min_size=1, max_size=20, open=False, kwargs={"row_factory": dict_row})
 
@@ -26,3 +27,14 @@ def migrate() -> list[str]:
                 conn.execute("insert into schema_migrations (name) values (%s)", (path.name,))
             applied.append(path.name)
     return applied
+
+
+def seed_if_empty() -> bool:
+    """Load seed.sql into a database with no users. One transaction, so a failure leaves nothing behind.
+    The table lock stops two API instances booting together from both seeding."""
+    with pool.connection() as conn, conn.transaction():
+        conn.execute("lock table users in share row exclusive mode")
+        if conn.execute("select exists (select 1 from users)").fetchone()["exists"]:
+            return False
+        conn.execute(SEED.read_text(encoding="utf-8"))
+    return True

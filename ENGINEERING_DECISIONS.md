@@ -91,3 +91,34 @@ history pages by sequence number. Every capped list says `capped: true` so the U
 **Trade-off.** No jump-to-page, no fuzzy search, no relevance tuning. Rejected a search engine
 because it would be the first thing to drift from the database and the brief's scale does not
 need it.
+
+## D-07 Seed data generated inside Postgres, loaded on boot into an empty database
+
+**Situation.** The demo needs tens of thousands of items with a real history so that lists,
+search, pagination and the inbox can be judged at scale, and the tests need known users and
+teams to sign in with.
+
+**Decision.** One SQL file, `api/seed.sql`, builds 40 users, 8 teams, 20,000 items and about
+150,000 events with `generate_series` and `setseed`, so the shape is the same on every machine.
+The API runs it on boot inside one transaction, under a table lock, only when `users` is empty.
+It is not a migration, so it is never recorded as applied and never blocks schema changes.
+Each item's `version` equals its event count and its last status event matches its status, so
+the invariants that `apply_change()` will enforce already hold on day one.
+
+**Trade-off.** Reseeding means dropping the Postgres volume. Generating the rows in Python was
+rejected because pushing 150,000 inserts over the wire takes minutes; inside Postgres it takes
+seconds and ships no extra code.
+
+## D-08 A signed, stateless session cookie for dev login
+
+**Situation.** Sign-on is out of scope, but every authorization check needs a trusted actor.
+
+**Decision.** `POST /auth/dev-login` accepts a seeded email and sets an HttpOnly, SameSite=Lax
+cookie holding the user id signed with `SESSION_SECRET` (itsdangerous, seven day expiry). One
+dependency, `current_user`, verifies the signature and loads the user; every later route uses
+it. Unknown emails get 404, a missing or forged cookie gets 401. The API refuses to start
+without `SESSION_SECRET` rather than fall back to a guessable default.
+
+**Trade-off.** No revocation and no password. The cookie is as trustworthy as the secret, which
+is fine for a demo where anyone may be anyone; the effort goes into what a user may do, not
+into proving who they are.
