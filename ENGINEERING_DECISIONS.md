@@ -387,3 +387,21 @@ gets a sequential number shown as `OPS-1234`, which people can say aloud and sea
 **Trade-off.** Counts are computed on every load instead of maintained as totals, which keeps
 them always correct and adds no write cost. If the tables grew by orders of magnitude, the
 counts would move to totals kept by `apply_change()` in the same transaction as each change.
+
+## D-23 Item keys count per team, from a counter on the team row
+
+**Situation.** One company-wide `OPS-` sequence made every team's items look alike, and an
+item's key said nothing about whose it was. People expect `RSK-1204` to be Risk's, and each
+team's numbers to run on without gaps.
+
+**Decision.** Every team has a short code and a `next_number`. `apply_change()` takes the next
+number for the item's team with `update teams set next_number = next_number + 1 ... returning`,
+in the same transaction that inserts the item, so a rolled-back create gives its number back and
+keys stay gapless. Items are unique on `(team_id, number)`. Migration 007 renumbered existing
+items within their team in creation order. Search reads `RSK-1204` as that team's item 1204 and a
+bare `1204` as that number on any team. A new team's code is the first three letters of its name,
+numbered when taken.
+
+**Trade-off.** The row lock on the team means creates on one team take turns. A Postgres sequence
+per team would not block, but it skips numbers on every rollback and needs DDL for every new
+team. People create items far slower than that lock is held, so gapless keys won.

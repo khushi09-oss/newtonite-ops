@@ -15,7 +15,7 @@ export function ItemRow({ item }) {
   return (
     <Link to={`/items/${item.id}`} className="row">
       <Priority value={item.priority} compact />
-      <ItemKey number={item.number} />
+      <ItemKey teamKey={item.team_key} number={item.number} />
       <span className="row-title">{item.title}</span>
       <span className="row-team">{item.team_name}</span>
       <Status value={item.status} />

@@ -113,10 +113,10 @@ export function Priority({ value, compact }) {
   );
 }
 
-export const itemKey = (number) => (number ? `OPS-${number}` : "");
+export const itemKey = (teamKey, number) => (teamKey && number ? `${teamKey}-${number}` : "");
 
-export function ItemKey({ number }) {
-  return <span className="item-key">{itemKey(number)}</span>;
+export function ItemKey({ teamKey, number }) {
+  return <span className="item-key">{itemKey(teamKey, number)}</span>;
 }
 
 // A stable, soft tint per person, so the same face is recognisable across screens.

@@ -1,6 +1,7 @@
 """Admin screens: inviting, roles, deactivation, teams. Every test works in a team of its own, so
 nobody it creates can join the Risk team that the claim race and the demo script use."""
 
+from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 
 import psycopg
@@ -51,6 +52,24 @@ def new_item(c, team, title="Admin test item"):
     )
     assert r.status_code == 201, r.text
     return r.json()
+
+
+def test_new_teams_get_their_own_code_and_count_from_one(client, team):
+    first = client.post("/admin/teams", json={"name": f"Zephyr {uuid4().hex[:8]}"}).json()
+    second = client.post("/admin/teams", json={"name": f"Zephyr {uuid4().hex[:8]}"}).json()
+    assert first["key"].startswith("ZEP") and second["key"].startswith("ZEP")
+    assert first["key"] != second["key"]
+    assert [new_item(client, team)["number"] for _ in range(3)] == [1, 2, 3]
+    assert new_item(client, first)["number"] == 1
+
+
+def test_concurrent_creates_on_one_team_take_distinct_keys(client, team, login):
+    admin = login(ADMIN)
+    with ThreadPoolExecutor(8) as pool:
+        numbers = list(
+            pool.map(lambda _: new_item(as_user(admin["id"]), team)["number"], range(16))
+        )
+    assert sorted(numbers) == list(range(1, 17))
 
 
 def test_non_admin_gets_404_on_admin_routes(client, login):

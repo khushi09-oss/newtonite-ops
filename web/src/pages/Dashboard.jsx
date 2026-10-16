@@ -17,7 +17,7 @@ const TILES = [
   { key: "assigned", label: "Assigned to you", icon: "inbox", hint: "Open and yours", to: "/inbox" },
   { key: "approvals", label: "Waiting for your approval", icon: "shield", hint: "On teams you lead", to: "/inbox" },
   { key: "urgent", label: "Urgent and unclaimed", icon: "bell", hint: "Urgent or high, no owner", to: "/inbox", alert: true },
-  { key: "overdue", label: "Overdue", icon: "clock", hint: "Open and past due", alert: true },
+  { key: "overdue", label: "Overdue", icon: "clock", hint: "Open and past due", to: "/items?overdue=true", alert: true },
   { key: "stale", label: "Quiet for 3 days", icon: "users", hint: "Open, no activity", to: "/inbox" },
 ];
 
@@ -117,7 +117,7 @@ export default function Dashboard() {
                       </div>
                       <Link to={`/items/${e.item_id}`} className="feed-item" title={`${e.team} team`}>
                         <span className="team-swatch" style={{ background: teamSwatch(e.team) }} />
-                        <ItemKey number={e.number} />
+                        <ItemKey teamKey={e.team_key} number={e.number} />
                         <span className="feed-title">{e.title}</span>
                       </Link>
                     </div>
