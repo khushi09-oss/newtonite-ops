@@ -8,6 +8,7 @@ import Inbox from "./pages/Inbox";
 import Items from "./pages/Items";
 import Item from "./pages/Item";
 import Notifications from "./pages/Notifications";
+import Admin from "./pages/Admin";
 import "./styles.css";
 
 const queryClient = new QueryClient({
@@ -48,6 +49,7 @@ function Shell() {
           Notifications
           {count > 0 && <span className="count">{unread.data.capped ? "50+" : count}</span>}
         </NavLink>
+        {me.data.is_admin && <NavLink to="/admin">Admin</NavLink>}
         <div className="rail-foot">
           <div className="who">{me.data.name}</div>
           <div className="muted small">
@@ -82,6 +84,7 @@ createRoot(document.getElementById("root")).render(
             <Route path="/items" element={<Items />} />
             <Route path="/items/:id" element={<Item />} />
             <Route path="/notifications" element={<Notifications />} />
+            <Route path="/admin" element={<Admin />} />
           </Route>
         </Routes>
       </BrowserRouter>
