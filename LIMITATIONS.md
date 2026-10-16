@@ -17,8 +17,8 @@ Kept current with every PR. Each line says what is missing and why it was left o
   together with a `SameSite=Lax` cookie. There is no separate CSRF token.
 - Rate limits are fixed windows per user (writes) counted in Postgres. A burst at the edge of
   two windows can briefly allow up to twice the limit.
-- No frontend unit tests. The UI's risky behaviour is the conflict across two sessions, which
-  was checked by hand in two browsers; the server rules it depends on are tested.
+- The browser tests cover the three behaviours that matter most across two people: a stale edit,
+  a claim race, and live updates. Other screens are checked by hand. There are no component tests.
 - On Vercel there is no always-on worker. Each API instance drains the outbox after it answers a
   request, so notifications and retries advance whenever someone uses the app; the scheduled
   sweep runs once a day on the free plan. An idle app can leave a failed job waiting until then.
