@@ -93,8 +93,13 @@ API instance processes the outbox after it answers a request, and a daily schedu
 vercel link                       # once, on your own account
 vercel integration add neon       # Postgres; sets DATABASE_URL
 vercel env add SESSION_SECRET     # and the other production settings below
-vercel deploy --prod
+vercel deploy --prod              # or connect the repository and merge to main
 ```
+
+The project is connected to this GitHub repository. A merge to `main` deploys production, and
+every other pushed branch gets its own preview deploy. Preview deploys have no `DATABASE_URL`,
+so they cannot touch the live database: their pages load but their API does not. Changes are
+tested locally before they merge.
 
 Production settings: `DEV_LOGIN=false`, `SEED_ON_BOOT=false`, `COOKIE_SECURE=true`,
 `DRAIN_OUTBOX_IN_REQUESTS=true`, `DB_POOL_MAX=5`, a random `SESSION_SECRET` and `CRON_SECRET`,
