@@ -29,25 +29,33 @@ def inbox_queries(conn, user: dict) -> dict[str, tuple[str, list]]:
     limit = BUCKET_CAP + 1
     return {
         "assigned": (
-            f"select {COLS},{NAMES} {FROM} where w.assignee_id = %s and w.status not in {CLOSED}"
-            " order by w.priority, w.updated_at desc limit %s",
+            (
+                f"select {COLS},{NAMES} {FROM} where w.assignee_id = %s and w.status not in {CLOSED}"
+                " order by w.priority, w.updated_at desc limit %s"
+            ),
             [user["id"], limit],
         ),
         "approvals": (
-            f"select {COLS},{NAMES} {FROM} where w.team_id = any(%s) and w.status = 'awaiting_approval'"
-            " and w.approval_requested_by <> %s order by w.priority, w.updated_at desc limit %s",
+            (
+                f"select {COLS},{NAMES} {FROM} where w.team_id = any(%s) and w.status = 'awaiting_approval'"
+                " and w.approval_requested_by <> %s order by w.priority, w.updated_at desc limit %s"
+            ),
             [lead_of, user["id"], limit],
         ),
         "unassigned_urgent": (
-            f"select {COLS},{NAMES} {FROM} where w.team_id = any(%s) and w.status not in {CLOSED}"
-            " and w.assignee_id is null and w.priority <= 1"
-            " order by w.priority, w.created_at desc limit %s",
+            (
+                f"select {COLS},{NAMES} {FROM} where w.team_id = any(%s) and w.status not in {CLOSED}"
+                " and w.assignee_id is null and w.priority <= 1"
+                " order by w.priority, w.created_at desc limit %s"
+            ),
             [teams, limit],
         ),
         "stale": (
-            f"select {COLS},{NAMES} {FROM} where w.team_id = any(%s) and w.status not in {CLOSED}"
-            f" and w.last_activity_at < now() - interval '{STALE_AFTER}'"
-            " order by w.last_activity_at limit %s",
+            (
+                f"select {COLS},{NAMES} {FROM} where w.team_id = any(%s) and w.status not in {CLOSED}"
+                f" and w.last_activity_at < now() - interval '{STALE_AFTER}'"
+                " order by w.last_activity_at limit %s"
+            ),
             [teams, limit],
         ),
     }
