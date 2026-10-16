@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
-from app import auth, db, inbox, items, notifications
+from app import auth, db, google, inbox, items, notifications
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("app")
@@ -45,6 +45,7 @@ async def refuse_cross_site_writes(request: Request, call_next):
 
 
 app.include_router(auth.router)
+app.include_router(google.router)
 app.include_router(items.router)
 app.include_router(notifications.router)
 app.include_router(inbox.router)

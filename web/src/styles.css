@@ -408,6 +408,24 @@ textarea {
   font-size: 13px;
   color: var(--muted);
 }
+.google-slot {
+  min-height: 44px;
+}
+.dev-signin {
+  display: grid;
+  gap: 12px;
+}
+.dev-signin.divided {
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+  margin-top: 4px;
+}
+.dev-signin label {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
 .quick {
   display: flex;
   flex-wrap: wrap;

@@ -2,8 +2,12 @@
 
 Kept current with every PR. Each line says what is missing and why it was left out.
 
-- No real sign-on yet. Local development signs in as any seeded user with no password; that
-  sign-in is off unless `DEV_LOGIN=true`, so a deployment never offers it by accident.
+- Sign-in is Google only. There is no email-and-password sign-in and no other provider. A
+  user without a Google account for their invited email cannot get in.
+- Local development signs in as any seeded user with no password. That sign-in is off unless
+  `DEV_LOGIN=true`, so a deployment never offers it by accident.
+- Sign-in rate limits key on the client address from `X-Forwarded-For`. That is trustworthy
+  behind a platform that sets the header itself, but not when the API is exposed directly.
 - Cross-site writes are refused by checking the `Origin` header against `ALLOWED_ORIGINS`,
   together with a `SameSite=Lax` cookie. There is no separate CSRF token.
 - Rate limits are fixed windows per user (writes) counted in Postgres. A burst at the edge of

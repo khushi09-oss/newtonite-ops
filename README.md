@@ -164,6 +164,24 @@ Set in `.env` locally, or as environment variables wherever the API runs.
 | `COOKIE_SECURE` | `false` | `true`, so the session cookie only travels over HTTPS. |
 | `ALLOWED_ORIGINS` | `http://localhost:5173` | The site's own URL. Writes from any other page are refused. |
 | `WRITE_LIMIT_PER_MINUTE` | `300` | Writes per user per minute before 429. |
+| `GOOGLE_CLIENT_ID` | empty, so Google sign-in is hidden | The OAuth client ID from Google Cloud. |
+| `ADMIN_EMAILS` | empty | The first admins, comma separated. They become admins on their first Google sign-in. |
+
+### Setting up Google sign-in
+
+1. In Google Cloud Console, open **APIs & Services**, then **OAuth consent screen**. Choose
+   **External**, fill in the app name and support email, and add yourself as a test user.
+   While the app is in testing, only test users can sign in; publish it to open it up.
+2. Open **Credentials**, then **Create credentials**, then **OAuth client ID**, type **Web
+   application**.
+3. Under **Authorized JavaScript origins** add `http://localhost:5173` and the site's own URL.
+   No redirect URI is needed: the sign-in button returns a token to the page directly.
+4. Put the client ID in `GOOGLE_CLIENT_ID` and your own email in `ADMIN_EMAILS`. Nothing else
+   from Google is secret or needed.
+
+Only invited people can sign in. Everyone else sees "has not been invited". The first time an
+invited person signs in, their email is tied to that Google account, so if the address is ever
+given to a different Google account, sign-in is refused.
 
 ## If something goes wrong
 
@@ -178,8 +196,8 @@ Set in `.env` locally, or as environment variables wherever the API runs.
 
 ## Assumptions
 
-- Single sign-on is out of scope. Users are seeded and a dev login issues a signed session
-  cookie. The effort went into authorization, which the server enforces in its queries.
+- People sign in with Google, and only invited emails get in. Locally, a dev sign-in lets you
+  be any seeded user without Google. Authorization is enforced by the server in its queries.
 - Notifications are stored in a table and shown in the app. Email or chat delivery would be
   one more outbox handler.
 - One company, many teams. A user holds a role per team (viewer, member, lead) and may be a
