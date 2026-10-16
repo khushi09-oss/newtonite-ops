@@ -16,7 +16,10 @@ log = logging.getLogger("app")
 async def lifespan(app: FastAPI):
     db.pool.open()
     db.migrate()
-    if os.environ.get("SEED_ON_BOOT", "true").lower() in ("1", "true", "yes") and db.seed_if_empty():
+    if (
+        os.environ.get("SEED_ON_BOOT", "true").lower() in ("1", "true", "yes")
+        and db.seed_if_empty()
+    ):
         log.info("seeded the demo dataset into an empty database")
     yield
     db.pool.close()
@@ -31,8 +34,11 @@ app.include_router(items.router)
 def stale_version(request: Request, exc: items.Conflict):
     """409 with the current row and its recent history, so the client can show who changed what."""
     with db.pool.connection() as conn:
+        current = items.load_item(conn, exc.item["id"])
         events = items.recent_events(conn, exc.item["id"])
-    return JSONResponse(jsonable_encoder({"detail": "stale version", "current": exc.item, "events": events}), 409)
+    return JSONResponse(
+        jsonable_encoder({"detail": "stale version", "current": current, "events": events}), 409
+    )
 
 
 @app.get("/health")

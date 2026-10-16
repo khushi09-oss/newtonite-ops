@@ -1,5 +1,5 @@
-"""Work items: the single write path, authorization as a query predicate, the transition table, and the
-list, get and create routes."""
+"""Work items: the single write path, authorization as a query predicate, the transition table, and every
+item route. Each mutation checks the action against allowed_actions() and writes through apply_change()."""
 
 import base64
 import json
@@ -16,15 +16,20 @@ from app.auth import current_user
 
 router = APIRouter()
 
-OPEN = ("new", "triaged", "in_progress", "awaiting_approval", "approved")
+STATUSES = ("new", "triaged", "in_progress", "awaiting_approval", "approved", "resolved", "closed")
+OPEN = STATUSES[:5]
 LIST_CAP = 100
 
 # Columns the API returns. The tsvector stays in the database.
-COLS = ("w.id, w.team_id, w.kind, w.title, w.description, w.status, w.priority, w.reporter_id, w.assignee_id,"
-        " w.approval_requested_by, w.due_at, w.version, w.created_at, w.updated_at, w.last_activity_at")
+COLS = (
+    "w.id, w.team_id, w.kind, w.title, w.description, w.status, w.priority, w.reporter_id, w.assignee_id,"
+    " w.approval_requested_by, w.due_at, w.version, w.created_at, w.updated_at, w.last_activity_at"
+)
 NAMES = " t.name as team_name, r.name as reporter_name, a.name as assignee_name"
-FROM = (" from work_items w join teams t on t.id = w.team_id join users r on r.id = w.reporter_id"
-        " left join users a on a.id = w.assignee_id")
+FROM = (
+    " from work_items w join teams t on t.id = w.team_id join users r on r.id = w.reporter_id"
+    " left join users a on a.id = w.assignee_id"
+)
 
 # (from, to): who may. Anything not listed is refused. See docs/BUILD_PLAN.md.
 TRANSITIONS = {
@@ -37,6 +42,7 @@ TRANSITIONS = {
     ("resolved", "closed"): "lead",
     ("closed", "triaged"): "lead",
 }
+NOTE_REQUIRED = {("awaiting_approval", "triaged")}
 
 
 def _holds(rule: str, user: dict, role: str, item: dict) -> bool:
@@ -83,11 +89,21 @@ def _jsonb(d: dict) -> Jsonb:
     return Jsonb(d, dumps=lambda o: json.dumps(o, default=str))
 
 
-def apply_change(conn, actor: dict, kind: str, changes: dict, item_id=None, expected_version=None,
-                 note: str | None = None, guard: str = "") -> dict:
+def apply_change(
+    conn,
+    actor: dict,
+    kind: str,
+    changes: dict,
+    item_id=None,
+    expected_version=None,
+    note: str | None = None,
+    guard: str = "",
+) -> dict:
     """The only function that writes work_items. With item_id it updates the row where version matches
     (plus any extra guard, e.g. "and assignee_id is null" for a claim); without it, inserts. Either way it
-    appends exactly one work_item_events row in the caller's transaction. Zero rows updated raises Conflict."""
+    appends exactly one work_item_events row in the caller's transaction. Zero rows updated raises Conflict
+    with the row as it is now. expected_version None means "whatever it is": the row is locked and bumped,
+    which is how comments add history without the client holding a version."""
     if item_id is None:
         cols = ", ".join(changes)
         row = conn.execute(
@@ -96,27 +112,45 @@ def apply_change(conn, actor: dict, kind: str, changes: dict, item_id=None, expe
         ).fetchone()
         before = None
     else:
-        before = conn.execute("select * from work_items where id = %s", (item_id,)).fetchone()
+        lock = " for update" if expected_version is None else ""
+        before = conn.execute(
+            f"select * from work_items where id = %s{lock}", (item_id,)
+        ).fetchone()
         if before is None:
             raise HTTPException(404, "item not found")
+        if expected_version is None:
+            expected_version = before["version"]
         row = None
         if before["version"] == expected_version:
-            sets = ", ".join(f"{k} = %s" for k in changes)
+            sets = "".join(f"{k} = %s, " for k in changes)
             row = conn.execute(
-                f"update work_items set {sets}, version = version + 1, updated_at = now(),"
+                f"update work_items set {sets}version = version + 1, updated_at = now(),"
                 f" last_activity_at = now() where id = %s and version = %s {guard} returning *",
                 [*changes.values(), item_id, expected_version],
             ).fetchone()
         if row is None:
-            raise Conflict(before)
+            raise Conflict(
+                conn.execute("select * from work_items where id = %s", (item_id,)).fetchone()
+            )
     conn.execute(
         "insert into work_item_events (item_id, seq, actor_id, kind, before, after, note)"
         " values (%s, %s, %s, %s, %s, %s, %s)",
-        (row["id"], row["version"], actor["id"], kind,
-         _jsonb({k: before[k] for k in changes}) if before else None,
-         _jsonb({k: row[k] for k in changes}), note),
+        (
+            row["id"],
+            row["version"],
+            actor["id"],
+            kind,
+            _jsonb({k: before[k] for k in changes}) if before else None,
+            _jsonb({k: row[k] for k in changes}),
+            note,
+        ),
     )
     return row
+
+
+def load_item(conn, item_id) -> dict | None:
+    """The row with names, no access check. For responses after access has already been verified."""
+    return conn.execute(f"select {COLS},{NAMES} {FROM} where w.id = %s", (item_id,)).fetchone()
 
 
 def require_access(conn, user: dict, item_id: UUID) -> dict:
@@ -132,23 +166,70 @@ def require_access(conn, user: dict, item_id: UUID) -> dict:
     return row
 
 
-def recent_events(conn, item_id, limit: int = 20) -> list[dict]:
+def _may(conn, user: dict, item_id: UUID, action: str, version: int | None = None) -> dict:
+    """require_access, then the version check, then the permission check. A stale version is answered
+    409 before anything else, because what the caller may do depends on a row they have not seen yet.
+    Transitions answer 422 with the allowed targets; everything else answers 403."""
+    item = require_access(conn, user, item_id)
+    if version is not None and item["version"] != version:
+        raise Conflict(item)
+    allowed = allowed_actions(user, item["role"], item)
+    if action not in allowed:
+        if action.startswith("transition:"):
+            targets = [a.split(":", 1)[1] for a in allowed if a.startswith("transition:")]
+            raise HTTPException(
+                422,
+                {
+                    "message": f"cannot move from {item['status']} to {action[11:]}",
+                    "allowed": targets,
+                },
+            )
+        raise HTTPException(403, {"message": f"not allowed to {action}", "allowed": allowed})
+    return item
+
+
+def _respond(conn, user: dict, item_id) -> dict:
+    item = require_access(conn, user, item_id)
+    return {
+        **item,
+        "allowed_actions": allowed_actions(user, item["role"], item),
+        "events": recent_events(conn, item_id),
+    }
+
+
+def recent_events(conn, item_id, limit: int = 20, before_seq: int | None = None) -> list[dict]:
+    cond = " and e.seq < %s" if before_seq is not None else ""
     return conn.execute(
         "select e.id, e.seq, e.actor_id, u.name as actor_name, e.kind, e.before, e.after, e.note, e.created_at"
         " from work_item_events e join users u on u.id = e.actor_id"
-        " where e.item_id = %s order by e.seq desc limit %s",
-        (item_id, limit),
+        f" where e.item_id = %s{cond} order by e.seq desc limit %s",
+        [item_id, *([before_seq] if before_seq is not None else []), limit],
     ).fetchall()
 
 
-def list_query(user: dict, team=None, status=None, priority=None, assignee=None, q=None,
-               cursor=None, limit: int = 50) -> tuple[str, list]:
+def list_query(
+    user: dict,
+    team=None,
+    status=None,
+    priority=None,
+    assignee=None,
+    q=None,
+    cursor=None,
+    limit: int = 50,
+) -> tuple[str, list]:
     """Built per request so each filter is a real constant to the planner and the composite index is used."""
     where, params = [], []
     if not user["is_admin"]:
-        where.append("exists (select 1 from team_members m where m.team_id = w.team_id and m.user_id = %s)")
+        where.append(
+            "exists (select 1 from team_members m where m.team_id = w.team_id and m.user_id = %s)"
+        )
         params.append(user["id"])
-    for col, val in (("w.team_id", team), ("w.status", status), ("w.priority", priority), ("w.assignee_id", assignee)):
+    for col, val in (
+        ("w.team_id", team),
+        ("w.status", status),
+        ("w.priority", priority),
+        ("w.assignee_id", assignee),
+    ):
         if val is not None:
             where.append(f"{col} = %s")
             params.append(val)
@@ -162,15 +243,24 @@ def list_query(user: dict, team=None, status=None, priority=None, assignee=None,
         except ValueError:
             raise HTTPException(422, "bad cursor")
         where.append("(w.updated_at, w.id) < (%s, %s)")
-    sql = (f"select {COLS},{NAMES} {FROM} where {' and '.join(where) or 'true'}"
-           f" order by w.updated_at desc, w.id desc limit {int(limit) + 1}")
+    sql = (
+        f"select {COLS},{NAMES} {FROM} where {' and '.join(where) or 'true'}"
+        f" order by w.updated_at desc, w.id desc limit {int(limit) + 1}"
+    )
     return sql, params
 
 
 @router.get("/items")
-def list_items(user: dict = Depends(current_user), team: UUID | None = None, status: str | None = None,
-               priority: int | None = Query(None, ge=0, le=3), assignee: UUID | None = None,
-               q: str | None = None, cursor: str | None = None, limit: int = Query(50, ge=1, le=LIST_CAP)):
+def list_items(
+    user: dict = Depends(current_user),
+    team: UUID | None = None,
+    status: str | None = None,
+    priority: int | None = Query(None, ge=0, le=3),
+    assignee: UUID | None = None,
+    q: str | None = None,
+    cursor: str | None = None,
+    limit: int = Query(50, ge=1, le=LIST_CAP),
+):
     sql, params = list_query(user, team, status, priority, assignee, q, cursor, limit)
     with db.pool.connection() as conn:
         rows = conn.execute(sql, params).fetchall()
@@ -179,16 +269,29 @@ def list_items(user: dict = Depends(current_user), team: UUID | None = None, sta
     next_cursor = None
     if capped:
         last = rows[-1]
-        next_cursor = base64.urlsafe_b64encode(f"{last['updated_at'].isoformat()} {last['id']}".encode()).decode()
+        next_cursor = base64.urlsafe_b64encode(
+            f"{last['updated_at'].isoformat()} {last['id']}".encode()
+        ).decode()
     return {"items": rows, "capped": capped, "next_cursor": next_cursor}
 
 
 @router.get("/items/{item_id}")
 def get_item(item_id: UUID, user: dict = Depends(current_user)):
     with db.pool.connection() as conn:
-        item = require_access(conn, user, item_id)
-        events = recent_events(conn, item_id)
-    return {**item, "allowed_actions": allowed_actions(user, item["role"], item), "events": events}
+        return _respond(conn, user, item_id)
+
+
+@router.get("/items/{item_id}/events")
+def list_events(
+    item_id: UUID,
+    user: dict = Depends(current_user),
+    before_seq: int | None = None,
+    limit: int = Query(50, ge=1, le=LIST_CAP),
+):
+    with db.pool.connection() as conn:
+        require_access(conn, user, item_id)
+        rows = recent_events(conn, item_id, limit + 1, before_seq)
+    return {"events": rows[:limit], "capped": len(rows) > limit}
 
 
 class CreateItem(BaseModel):
@@ -204,12 +307,115 @@ class CreateItem(BaseModel):
 def create_item(body: CreateItem, user: dict = Depends(current_user)):
     with db.pool.connection() as conn, conn.transaction():
         membership = conn.execute(
-            "select role from team_members where team_id = %s and user_id = %s", (body.team_id, user["id"])
+            "select role from team_members where team_id = %s and user_id = %s",
+            (body.team_id, user["id"]),
         ).fetchone()
         if membership is None and not user["is_admin"]:
             raise HTTPException(404, "team not found")
         if membership is not None and membership["role"] == "viewer" and not user["is_admin"]:
             raise HTTPException(403, "viewers cannot create items")
         row = apply_change(conn, user, "created", {**body.model_dump(), "reporter_id": user["id"]})
-        item = require_access(conn, user, row["id"])
-    return {**item, "allowed_actions": allowed_actions(user, item["role"], item), "events": []}
+        return _respond(conn, user, row["id"])
+
+
+class Versioned(BaseModel):
+    version: int
+
+
+class Patch(Versioned):
+    title: str | None = Field(None, min_length=1, max_length=200)
+    description: str | None = None
+    priority: int | None = Field(None, ge=0, le=3)
+    due_at: datetime | None = None
+
+
+@router.patch("/items/{item_id}")
+def patch_item(item_id: UUID, body: Patch, user: dict = Depends(current_user)):
+    changes = body.model_dump(exclude_unset=True, exclude={"version"})
+    if not changes:
+        raise HTTPException(422, "nothing to change")
+    with db.pool.connection() as conn, conn.transaction():
+        if "priority" in changes:
+            _may(conn, user, item_id, "priority", body.version)
+        if set(changes) - {"priority"}:
+            _may(conn, user, item_id, "edit", body.version)
+        apply_change(conn, user, "edited", changes, item_id, body.version)
+        return _respond(conn, user, item_id)
+
+
+@router.post("/items/{item_id}/claim")
+def claim_item(item_id: UUID, body: Versioned, user: dict = Depends(current_user)):
+    with db.pool.connection() as conn, conn.transaction():
+        _may(conn, user, item_id, "claim", body.version)
+        # The guard makes the claim atomic even if two callers hold the same version: one row, one winner.
+        apply_change(
+            conn,
+            user,
+            "claimed",
+            {"assignee_id": user["id"], "status": "in_progress"},
+            item_id,
+            body.version,
+            guard="and assignee_id is null",
+        )
+        return _respond(conn, user, item_id)
+
+
+@router.post("/items/{item_id}/release")
+def release_item(item_id: UUID, body: Versioned, user: dict = Depends(current_user)):
+    with db.pool.connection() as conn, conn.transaction():
+        _may(conn, user, item_id, "release", body.version)
+        apply_change(conn, user, "released", {"assignee_id": None}, item_id, body.version)
+        return _respond(conn, user, item_id)
+
+
+class Assign(Versioned):
+    assignee_id: UUID
+
+
+@router.post("/items/{item_id}/assign")
+def assign_item(item_id: UUID, body: Assign, user: dict = Depends(current_user)):
+    with db.pool.connection() as conn, conn.transaction():
+        item = _may(conn, user, item_id, "assign", body.version)
+        ok = conn.execute(
+            "select 1 from team_members m join users u on u.id = m.user_id"
+            " where m.team_id = %s and m.user_id = %s and (m.role <> 'viewer' or u.is_admin)",
+            (item["team_id"], body.assignee_id),
+        ).fetchone()
+        if ok is None:
+            raise HTTPException(422, "assignee must be a member or lead of the item's team")
+        apply_change(
+            conn, user, "assigned", {"assignee_id": body.assignee_id}, item_id, body.version
+        )
+        return _respond(conn, user, item_id)
+
+
+class Transition(Versioned):
+    to: Literal[STATUSES]
+    note: str | None = None
+
+
+@router.post("/items/{item_id}/transition")
+def transition_item(item_id: UUID, body: Transition, user: dict = Depends(current_user)):
+    with db.pool.connection() as conn, conn.transaction():
+        item = _may(conn, user, item_id, f"transition:{body.to}", body.version)
+        if (item["status"], body.to) in NOTE_REQUIRED and not (body.note or "").strip():
+            raise HTTPException(422, "a note is required for this transition")
+        changes = {"status": body.to}
+        if body.to == "awaiting_approval":
+            changes["approval_requested_by"] = user["id"]
+        elif item["status"] == "awaiting_approval":
+            changes["approval_requested_by"] = None
+        apply_change(conn, user, "status", changes, item_id, body.version, note=body.note)
+        return _respond(conn, user, item_id)
+
+
+class Comment(BaseModel):
+    body: str = Field(min_length=1, max_length=5000)
+
+
+@router.post("/items/{item_id}/comments", status_code=201)
+def comment_item(item_id: UUID, body: Comment, user: dict = Depends(current_user)):
+    with db.pool.connection() as conn, conn.transaction():
+        _may(conn, user, item_id, "comment")
+        apply_change(conn, user, "comment", {}, item_id, note=body.body)
+        return _respond(conn, user, item_id)

@@ -21,3 +21,8 @@ testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 100
+
+[tool.ruff.lint]
+# B008: Depends() in a default is FastAPI's documented idiom.
+# EXE002: the Windows build context gives every file an executable bit; there is no shebang to add.
+ignore = ["B008", "EXE002"]
