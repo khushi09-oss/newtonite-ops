@@ -131,7 +131,7 @@ React + Vite + TanStack Query. Three routes:
 | Step | Deliverable | Done when |
 |---|---|---|
 | 0 | [x] Scaffold: compose, migration 001, health, docs skeleton | stack boots, triggers verified |
-| 1 | [ ] Seed script (SQL generate_series: 40 users, 8 teams, 20k items, 150k events), dev login, `/me` | `curl /me` with a seeded user works |
+| 1 | [x] Seed script (SQL generate_series: 40 users, 8 teams, 20k items, 150k events), dev login, `/me` | `curl /me` with a seeded user works |
 | 2 | [ ] `apply_change()`, `require_access`, transition table, `/items` list + get | every route writes through `apply_change`; EXPLAIN shows index scans |
 | 3 | [ ] claim, release, assign, patch, transition, comments, events page, all version-checked | race test passes |
 | 4 | [ ] Idempotency dependency, outbox insert, worker, notifications, `/inbox` | worker survives a kill mid-batch and a second worker alongside |

@@ -24,13 +24,19 @@ docker compose up --build
 
 The API runs its migrations on boot and seeds a demo dataset (users, teams, 20,000 work
 items, their history) when the database is empty. Sign in with any seeded user from the
-login screen; there is no password (see Assumptions).
+login screen; there is no password (see Assumptions). From the shell:
+
+```bash
+curl -c jar -X POST localhost:8000/auth/dev-login -H 'content-type: application/json' -d '{"email":"ava.okafor@newtonite.dev"}'
+curl -b jar localhost:8000/me
+```
+
+Seeded emails are `first.last@newtonite.dev`; the first user is the global admin.
 
 ## Run the tests
 
 ```bash
-docker compose up -d postgres
-cd api && pip install -e .[dev] && pytest
+docker compose exec api python -m pytest -q
 ```
 
 Tests run against real Postgres, not SQLite, because the claim race and the outbox depend on
@@ -42,6 +48,7 @@ Postgres row locking.
 |---|---|
 | `api/app/` | FastAPI application: routes, authorization, the single `apply_change()` write path |
 | `api/migrations/` | Plain SQL, applied in order on boot |
+| `api/seed.sql` | The demo dataset, generated inside Postgres on first boot |
 | `api/worker.py` | The outbox worker: notifications, retries, dead-lettering |
 | `api/tests/` | Tests named after the risk they guard |
 | `web/` | React + Vite frontend |
