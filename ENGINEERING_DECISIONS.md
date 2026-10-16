@@ -256,3 +256,22 @@ together cannot race, and the lock works through a connection pooler.
 cookie that cannot be revoked and a limit each instance counts separately are both false
 security. Rejected in-memory rate limits because on many instances each would allow the full
 limit.
+
+## D-16 Google ID tokens verified by the API, invitations decide who gets in
+
+**Situation.** Real users need real sign-in. The options were a hosted identity service (Clerk,
+Neon Auth), passwords stored by the app, or signing in with Google directly.
+
+**Decision.** The page shows Google's own button. Google returns a signed ID token, and the API
+verifies it against Google's published keys, checking issuer, audience, expiry and that Google
+has verified the email. The email must belong to an invited, active user; emails in
+`ADMIN_EMAILS` become admins on first sign-in so a new deployment has someone to invite
+everyone else. The first sign-in records Google's stable account id against the user, and a
+later token for the same email from a different account is refused. A successful sign-in
+issues the same database session as before, so revocation and rate limits apply unchanged.
+
+**Trade-off.** Google only: no passwords and no other providers. Accepted because it stores no
+credentials and needs no email delivery for resets or verification. Rejected Clerk because a
+production instance needs a domain we own and adds a second user store to keep in step.
+Rejected app-stored passwords because resets and verification need email delivery we do not
+have.
