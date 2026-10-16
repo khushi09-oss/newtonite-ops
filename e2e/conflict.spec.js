@@ -3,8 +3,8 @@
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 
-const MEMBER = "Dev, on Risk";
-const LEAD = "Finn, leads Risk";
+const MEMBER = "Risk member";
+const LEAD = "Risk lead";
 
 async function signIn(browser, label, { live = true } = {}) {
   const context = await browser.newContext();
@@ -13,7 +13,7 @@ async function signIn(browser, label, { live = true } = {}) {
   if (!live) await page.route("**/api/stream**", (route) => route.abort());
   await page.goto("/login");
   await page.getByRole("button", { name: label }).click();
-  await page.waitForURL("**/inbox");
+  await page.waitForURL((url) => new URL(url).pathname === "/"); // signing in lands on the dashboard
   return { context, page };
 }
 
@@ -43,14 +43,14 @@ test("a stale edit is rolled back and the conflict strip names who changed what"
   await lead.page.getByRole("button", { name: "Edit" }).click();
   await lead.page.locator(".edit-form select").first().selectOption({ label: "P0 Urgent" });
   await lead.page.getByRole("button", { name: "Save changes" }).click();
-  await expect(prop(lead.page, "Priority")).toContainText("P0");
+  await expect(prop(lead.page, "Priority")).toContainText("Urgent");
   await expect(prop(member.page, "Version")).toHaveText("1");
 
   // The member acts on the stale copy: rolled back, and told exactly what happened.
   await member.page.getByRole("button", { name: "Triage" }).click();
   const strip = member.page.locator(".conflict");
   await expect(strip).toContainText("Changed by Finn Okafor");
-  await expect(strip).toContainText("priority P2 → P0");
+  await expect(strip).toContainText("priority Normal → Urgent");
   await expect(strip).toContainText("Your change was not saved");
   await expect(prop(member.page, "Status")).toContainText("New");
 
@@ -58,7 +58,7 @@ test("a stale edit is rolled back and the conflict strip names who changed what"
   await strip.getByRole("button", { name: "Retry on the new version" }).click();
   await expect(member.page.locator(".conflict")).toHaveCount(0);
   await expect(prop(member.page, "Status")).toContainText("Triaged");
-  await expect(prop(member.page, "Priority")).toContainText("P0"); // the lead's change survived
+  await expect(prop(member.page, "Priority")).toContainText("Urgent"); // the lead's change survived
 
   await member.context.close();
   await lead.context.close();

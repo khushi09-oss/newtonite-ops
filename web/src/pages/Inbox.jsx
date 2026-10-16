@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import { pollEvery, useLiveConnected } from "../live";
-import { Person, Priority, Status, Time } from "../ui";
+import { ItemKey, Person, Priority, Status, Time } from "../ui";
 
 const BUCKETS = [
   ["assigned", "Assigned to me", "Nothing is assigned to you right now."],
@@ -15,6 +15,7 @@ export function ItemRow({ item }) {
   return (
     <Link to={`/items/${item.id}`} className="row">
       <Priority value={item.priority} compact />
+      <ItemKey number={item.number} />
       <span className="row-title">{item.title}</span>
       <span className="row-team">{item.team_name}</span>
       <Status value={item.status} />

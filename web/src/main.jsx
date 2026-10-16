@@ -3,9 +3,11 @@ import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BrowserRouter, Link, Navigate, NavLink, Outlet, Route, Routes, useMatch, useNavigate } from "react-router-dom";
 import { api } from "./api";
-import { DemoBanner } from "./ui";
+import { Avatar, DemoBanner, teamSwatch } from "./ui";
+import { Icon } from "./icons";
 import { LiveUpdates, pollEvery, useLiveConnected } from "./live";
 import Login from "./pages/Login";
+import Dashboard from "./pages/Dashboard";
 import Inbox from "./pages/Inbox";
 import Items from "./pages/Items";
 import Item from "./pages/Item";
@@ -33,58 +35,85 @@ function Shell() {
 
   return (
     <LiveUpdates itemId={itemMatch?.params.id} onEnded={onEnded}>
-      <ShellBody me={me} config={config} qc={qc} navigate={navigate} />
+      <ShellBody me={me.data} demo={config.data?.demo} qc={qc} navigate={navigate} />
     </LiveUpdates>
   );
 }
 
-function ShellBody({ me, config, qc, navigate }) {
+function ShellBody({ me, demo, qc, navigate }) {
   const live = useLiveConnected();
   const unread = useQuery({
     queryKey: ["notifications", "unread"],
     queryFn: () => api("/notifications?unread=true"),
     refetchInterval: pollEvery(live),
   });
+  // The same query the dashboard reads, so the sidebar's count and the home page always agree.
+  const dash = useQuery({ queryKey: ["dashboard"], queryFn: () => api("/dashboard"), refetchInterval: pollEvery(live) });
 
-  const count = unread.data ? unread.data.notifications.length : 0;
+  const unreadCount = unread.data ? unread.data.notifications.length : 0;
+  const inboxCount = dash.data ? dash.data.counts.assigned + dash.data.counts.approvals : 0;
+  const canCreate = me.is_admin || me.teams.some((t) => t.role !== "viewer");
   const signOut = async () => {
     // The cookie is HttpOnly, so only the server can end the session.
     await api("/auth/logout", { method: "POST" }).catch(() => {});
     qc.clear();
     navigate("/login");
   };
+  const role = me.is_admin ? "Admin" : me.teams.some((t) => t.role === "lead") ? "Team lead" : "Member";
 
   return (
     <div className="shell">
       <nav className="rail" aria-label="Main">
-        <Link to="/inbox" className="brand">
+        <Link to="/" className="brand">
+          <span className="brand-mark">N</span>
           Newtonite Ops
         </Link>
-        <NavLink to="/inbox">Inbox</NavLink>
-        <NavLink to="/items">Items</NavLink>
-        <NavLink to="/notifications">
-          Notifications
-          {count > 0 && <span className="count">{unread.data.capped ? "50+" : count}</span>}
+        {canCreate && (
+          <button className="primary rail-new" onClick={() => navigate("/items?new=1")}>
+            <Icon name="plus" /> New item
+          </button>
+        )}
+        <NavLink to="/" end className="nav-link">
+          <Icon name="dashboard" /> Dashboard
         </NavLink>
-        {me.data.is_admin && <NavLink to="/admin">Admin</NavLink>}
+        <NavLink to="/inbox" className="nav-link">
+          <Icon name="inbox" /> Inbox
+          {inboxCount > 0 && <span className="nav-count">{inboxCount}</span>}
+        </NavLink>
+        <NavLink to="/items" end className="nav-link">
+          <Icon name="list" /> All items
+        </NavLink>
+        <NavLink to="/notifications" className="nav-link">
+          <Icon name="bell" /> Notifications
+          {unreadCount > 0 && <span className="nav-count hot">{unread.data.capped ? "50+" : unreadCount}</span>}
+        </NavLink>
+        {me.is_admin && (
+          <NavLink to="/admin" className="nav-link">
+            <Icon name="shield" /> Admin
+          </NavLink>
+        )}
+        {me.teams.length > 0 && <div className="rail-section">Your teams</div>}
+        {me.teams.map((t) => (
+          <Link key={t.id} to={`/items?team=${t.id}`} className="team-link">
+            <span className="team-swatch" style={{ background: teamSwatch(t.name) }} />
+            {t.name}
+            <span className="role">{t.role}</span>
+          </Link>
+        ))}
         <div className="rail-foot">
-          <div className="who">{me.data.name}</div>
-          <div className="muted small">
-            {me.data.is_admin ? "Admin" : null}
-            {me.data.teams.map((t) => (
-              <div key={t.id}>
-                {t.name} <span className="role">{t.role}</span>
-              </div>
-            ))}
+          <Avatar name={me.name} size={28} />
+          <div className="who">
+            <div className="who-name">{me.name}</div>
+            <div className="who-role">{role}</div>
           </div>
-          <button className="link" onClick={signOut}>
-            Sign out
+          <button className="ghost" onClick={signOut} title="Sign out" aria-label="Sign out">
+            <Icon name="out" />
           </button>
         </div>
       </nav>
       <main className="content">
-        {config.data?.demo && <DemoBanner />}
-        <Outlet context={me.data} />
+        {demo && <DemoBanner />}
+        <Outlet context={me} />
       </main>
     </div>
   );
@@ -97,7 +126,7 @@ createRoot(document.getElementById("root")).render(
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route element={<Shell />}>
-            <Route index element={<Navigate to="/inbox" replace />} />
+            <Route index element={<Dashboard />} />
             <Route path="/inbox" element={<Inbox />} />
             <Route path="/items" element={<Items />} />
             <Route path="/items/:id" element={<Item />} />
