@@ -460,3 +460,23 @@ Off the demo nothing is ever marked private, so admins see everything as before.
 admin of a real deployment cannot see a private team either, but nothing outside demo mode creates
 one. A separate admin role scoped to "public" data was considered. It would touch the same queries
 and add a concept that only the demo needs.
+
+## D-27 A visitor's own workspace is the teams they lead, not a new tenant
+
+**Situation.** The demo let visitors explore shared, seeded data. Nobody could try the real path:
+start empty, make a team, bring people in, do the work. Real organisations would mean an
+organisation id on every table and a new check in every query, where one miss leaks one company's
+data to another.
+
+**Decision.** On the demo, signing in with Google opens an empty workspace instead of joining the
+seeded teams. The visitor creates teams (`POST /teams`), each private (D-26) with them as its lead.
+A lead adds people by email (`PUT /teams/{id}/members`), which on the demo creates a private
+account they sign in to with Google. Everything a person sees was already filtered by team
+membership, so the workspace needed no new isolation layer. The shared demo accounts cannot create
+teams or be added to one, since anything they touch is visible to every visitor. The same lead
+action works off the demo for people who already have an account, which removes a limitation:
+leads can now manage their own team.
+
+**Trade-off.** A workspace has no name of its own, no admin and no billing, and the nightly reset
+clears it. That is the right size for a demo that shows the product. A real multi-company service
+would add organisations as their own layer.

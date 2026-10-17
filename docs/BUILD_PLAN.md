@@ -82,6 +82,11 @@ POST /items/{id}/comments                         {body}                 Idempot
 GET  /items/{id}/events?before_seq=&limit=50
 POST /items/{id}/watch | DELETE /items/{id}/watch
 
+GET  /teams/{id}/members                          who can be assigned
+PUT  /teams/{id}/members                          {email, name?, role}   the team's lead only
+DELETE /teams/{id}/members/{user_id}              the team's lead only; releases their open items
+POST /teams                                       {name}                 demo only: a visitor's own team
+
 GET  /inbox                                       four buckets, each capped at 50
 GET  /notifications?unread=1
 POST /notifications/{id}/read
