@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useOutletContext, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useOutletContext, useSearchParams } from "react-router-dom";
 import { api, newKey } from "../api";
 import { Icon } from "../icons";
 import { ItemRow, KIND_LABEL, PRIORITY_LABEL, STATUS_LABEL, StatusIcon } from "../ui";
@@ -79,11 +79,19 @@ export default function Items() {
             {counts.data ? summary(open, total - open, filtered) : "Everything on your teams, grouped by where it is in the workflow."}
           </p>
         </div>
-        {canCreate && (
-          <button className="primary" onClick={() => setCreating(true)}>
-            <Icon name="plus" /> New item
-          </button>
-        )}
+        <div className="head-actions">
+          {/* Filtered to one of your teams: its people are one click away. */}
+          {me.teams.some((t) => t.id === filters.team) && (
+            <Link to={`/teams/${filters.team}`} className="button">
+              <Icon name="users" /> Members
+            </Link>
+          )}
+          {canCreate && (
+            <button className="primary" onClick={() => setCreating(true)}>
+              <Icon name="plus" /> New item
+            </button>
+          )}
+        </div>
       </header>
       {creating && <NewItem me={me} onDone={() => setCreating(false)} />}
 
@@ -139,8 +147,22 @@ export default function Items() {
       {counts.isError && <div className="error">Could not load items: {counts.error.message}</div>}
       {counts.data && total === 0 && (
         <div className="empty-state">
-          <strong>Nothing matches.</strong>
-          <span className="muted">Try another search, or clear the filters.</span>
+          {me.teams.length === 0 && !me.is_admin ? (
+            <>
+              <strong>You are not on a team yet.</strong>
+              <Link to="/">Set up your workspace</Link>
+            </>
+          ) : FILTERS.some((f) => f !== "team" && filters[f]) ? (
+            <>
+              <strong>Nothing matches.</strong>
+              <span className="muted">Try another search, or clear the filters.</span>
+            </>
+          ) : (
+            <>
+              <strong>No items yet.</strong>
+              <span className="muted">Create the first one with New item.</span>
+            </>
+          )}
         </div>
       )}
       {counts.data &&

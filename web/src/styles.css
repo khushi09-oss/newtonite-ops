@@ -1639,6 +1639,64 @@ button.wide {
   padding-top: 2px;
 }
 
+/* A team's page: its people, and the forms a lead uses to add them. */
+.head-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+a.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 5px 12px;
+  min-height: 32px;
+  font-weight: 500;
+  color: var(--ink);
+}
+a.button:hover {
+  background: var(--surface-2);
+  text-decoration: none;
+}
+.inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.inline-form input {
+  flex: 1;
+  min-width: 200px;
+}
+.inline-form .error {
+  flex-basis: 100%;
+}
+.add-member {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 110px auto;
+  gap: 8px;
+}
+.add-member p {
+  grid-column: 1 / -1;
+}
+.team-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.team-add {
+  margin-bottom: 22px;
+}
+.section-title {
+  font-size: 14px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
 @media (max-width: 1100px) {
   .tiles {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1749,6 +1807,9 @@ button.wide {
   }
   .modal-fields,
   .modal-fields.two {
+    grid-template-columns: 1fr;
+  }
+  .add-member {
     grid-template-columns: 1fr;
   }
   .people-row,
