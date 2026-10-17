@@ -527,7 +527,7 @@ def team_members(team_id: UUID, user: dict = Depends(current_user)):
         if visible is None:
             raise HTTPException(404, "team not found")
         rows = conn.execute(
-            "select u.id, u.name, m.role from team_members m join users u on u.id = m.user_id"
+            "select u.id, u.name, u.email, m.role from team_members m join users u on u.id = m.user_id"
             " where m.team_id = %s and u.deactivated_at is null order by m.role, u.name limit %s",
             (team_id, LIST_CAP + 1),
         ).fetchall()

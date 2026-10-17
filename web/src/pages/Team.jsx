@@ -1,0 +1,199 @@
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom";
+import { api } from "../api";
+import { Icon } from "../icons";
+import { Avatar, teamSwatch } from "../ui";
+
+const ROLES = ["viewer", "member", "lead"];
+const ROLE_HINT = {
+  viewer: "Follows the work, cannot change it",
+  member: "Creates, claims and works items",
+  lead: "Approves work and manages the team",
+};
+
+// A visitor's own team on the demo. Used by the dashboard's setup and the sidebar.
+export function NewTeamForm({ onCreated, autoFocus }) {
+  const qc = useQueryClient();
+  const [name, setName] = useState("");
+  const create = useMutation({
+    mutationFn: () => api("/teams", { method: "POST", body: { name: name.trim() } }),
+    onSuccess: (team) => {
+      setName("");
+      qc.invalidateQueries({ queryKey: ["me"] });
+      onCreated?.(team);
+    },
+  });
+  return (
+    <form
+      className="inline-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        create.mutate();
+      }}
+    >
+      <input
+        aria-label="Team name"
+        placeholder="Team name, like Payments or Support"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        maxLength={80}
+        autoFocus={autoFocus}
+        required
+      />
+      <button className="primary" disabled={create.isPending || !name.trim()}>
+        Create team
+      </button>
+      {create.isError && <p className="error">{create.error.message}</p>}
+    </form>
+  );
+}
+
+// Add someone by email, or change the role of someone already on the team.
+export function AddMemberForm({ team, demo }) {
+  const qc = useQueryClient();
+  const blank = { email: "", name: "", role: "member" };
+  const [form, setForm] = useState(blank);
+  const add = useMutation({
+    mutationFn: () => api(`/teams/${team.id}/members`, { method: "PUT", body: { ...form, name: form.name.trim() || null } }),
+    onSuccess: () => setForm(blank),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["members", team.id] }),
+  });
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+  return (
+    <form
+      className="add-member"
+      onSubmit={(e) => {
+        e.preventDefault();
+        add.mutate();
+      }}
+    >
+      <input type="email" required aria-label="Email" placeholder="Their Google email" value={form.email} onChange={set("email")} />
+      <input aria-label="Name" placeholder="Name (optional)" value={form.name} onChange={set("name")} maxLength={120} />
+      <select aria-label="Role" value={form.role} onChange={set("role")}>
+        {ROLES.map((r) => (
+          <option key={r}>{r}</option>
+        ))}
+      </select>
+      <button className="primary" disabled={add.isPending || !form.email}>
+        Add
+      </button>
+      <p className={`small ${add.isError ? "error" : "muted"}`}>
+        {add.isError
+          ? add.error.message
+          : add.isSuccess
+            ? `Added. They sign in with Google as ${add.data.email}.`
+            : demo
+              ? "Nothing is emailed. Tell them to open this site and sign in with Google using that address."
+              : "They need an account already. An admin invites anyone new."}
+      </p>
+    </form>
+  );
+}
+
+export default function Team() {
+  const me = useOutletContext();
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const team = me.teams.find((t) => t.id === id);
+  const members = useQuery({ queryKey: ["members", id], queryFn: () => api(`/teams/${id}/members`), enabled: Boolean(team) });
+  const config = useQuery({ queryKey: ["auth-config"], queryFn: () => api("/auth/config"), staleTime: Infinity });
+  const done = { onSettled: () => qc.invalidateQueries({ queryKey: ["members", id] }) };
+  const setRole = useMutation({ mutationFn: ({ email, role }) => api(`/teams/${id}/members`, { method: "PUT", body: { email, role } }), ...done });
+  const remove = useMutation({ mutationFn: (userId) => api(`/teams/${id}/members/${userId}`, { method: "DELETE" }), ...done });
+
+  if (!team) {
+    return (
+      <div className="page">
+        <div className="empty-state">
+          <strong>Team not found.</strong>
+          <span className="muted">You are not on this team, or it no longer exists.</span>
+        </div>
+      </div>
+    );
+  }
+  const isLead = team.role === "lead";
+  const error = setRole.error || remove.error;
+
+  return (
+    <div className="page">
+      <header className="page-head">
+        <div>
+          <h1 className="team-title">
+            <span className="team-swatch" style={{ background: teamSwatch(team.name) }} />
+            {team.name}
+            {team.key && <span className="item-key">{team.key}</span>}
+          </h1>
+          <p className="muted">
+            You are its {team.role}. {ROLE_HINT[team.role]}.
+          </p>
+        </div>
+        <button onClick={() => navigate(`/items?team=${id}`)}>
+          <Icon name="list" /> Open items
+        </button>
+      </header>
+
+      {isLead && (
+        <section className="card team-add">
+          <div className="card-head">
+            <h2>Add someone</h2>
+            <p>Leads approve work, members do it, viewers follow it.</p>
+          </div>
+          <div className="card-body">
+            <AddMemberForm team={team} demo={config.data?.demo} />
+          </div>
+        </section>
+      )}
+
+      <h2 className="section-title">
+        Members <span className="count-inline">{members.data?.members.length ?? ""}</span>
+      </h2>
+      {error && <p className="error">{error.message}</p>}
+      {remove.isSuccess && remove.data.released > 0 && (
+        <p className="muted small">Released {remove.data.released} open item(s) they owned; each release is in the item's history.</p>
+      )}
+      <div className="table">
+        {members.isPending && <div className="group-note">Loading</div>}
+        {members.data?.members.map((m) => (
+          <div key={m.id} className="trow roster-row">
+            <span className="tperson">
+              <Avatar name={m.name} size={28} />
+              <span className="tperson-text">
+                <span>
+                  <strong>{m.name}</strong>
+                  {m.id === me.id && <span className="muted"> (you)</span>}
+                </span>
+                <span className="muted small">{m.email}</span>
+              </span>
+            </span>
+            {isLead && m.id !== me.id ? (
+              <select
+                aria-label={`Role for ${m.name}`}
+                value={m.role}
+                disabled={setRole.isPending}
+                onChange={(e) => setRole.mutate({ email: m.email, role: e.target.value })}
+              >
+                {ROLES.map((r) => (
+                  <option key={r}>{r}</option>
+                ))}
+              </select>
+            ) : (
+              <span className="muted small">{m.role}</span>
+            )}
+            {isLead && m.id !== me.id ? (
+              <button className="ghost small-btn" disabled={remove.isPending} onClick={() => remove.mutate(m.id)}>
+                Remove
+              </button>
+            ) : (
+              <span />
+            )}
+          </div>
+        ))}
+      </div>
+      <p className="muted small more-note">
+        <Link to={`/items?team=${id}`}>See this team's items</Link>
+      </p>
+    </div>
+  );
+}
