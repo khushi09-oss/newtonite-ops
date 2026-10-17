@@ -40,6 +40,10 @@ test("a stale edit is rolled back and the conflict strip names who changed what"
   const lead = await signIn(browser, LEAD);
   const id = await newRiskItem(member.page, `E2E stale edit ${randomUUID().slice(0, 8)}`);
 
+  // The member's page must stay stale. With its live stream cut it would still poll every 15 s, and on
+  // a busy machine that poll can land mid-test and quietly fetch the new version. A frozen clock stops
+  // the poll; clicks and server answers do not need timers.
+  await member.page.clock.install();
   await member.page.goto(`/items/${id}`);
   await lead.page.goto(`/items/${id}`);
   await expect(prop(member.page, "Version")).toHaveText("1");

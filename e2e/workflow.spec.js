@@ -24,8 +24,12 @@ async function signIn(browser, { card, email }) {
 
 const prop = (page, name) => page.locator(".props dt", { hasText: name }).locator("xpath=following-sibling::dd[1]");
 const hint = (page) => page.locator(".side-card").first().locator("p").first();
+// The page shows a move at once and the server confirms it after, so wait for both: a next step
+// taken in another browser must see the saved state, not the one painted ahead of it.
 async function move(page, button, status) {
+  const saved = page.waitForResponse((r) => /\/(transition|claim)$/.test(new URL(r.url()).pathname) && r.request().method() === "POST");
   await page.getByRole("button", { name: button, exact: true }).click();
+  expect((await saved).ok()).toBe(true);
   await expect(prop(page, "Status")).toHaveText(status);
 }
 
@@ -68,8 +72,7 @@ test("an item goes from new to closed and back, and every rule on the way holds"
   // new -> triaged by a member, then the claim takes it to in progress with them as owner.
   await member.goto(url);
   await move(member, "Triage", "Triaged");
-  await member.getByRole("button", { name: "Claim", exact: true }).click();
-  await expect(prop(member, "Status")).toHaveText("In progress");
+  await move(member, "Claim", "In progress");
   await expect(prop(member, "Assignee")).toContainText("Dev Mehta");
 
   // The owner asks for approval. Nobody approves their own request, so they are not offered it.

@@ -201,7 +201,7 @@ function Group({ status, query, count, open, onToggle }) {
   const items = list.data ? list.data.pages.flatMap((p) => p.items) : [];
 
   return (
-    <section className={`group ${open ? "open" : ""}`}>
+    <section className={`group group-${status} ${open ? "open" : ""}`}>
       <button className="group-head" aria-expanded={open} onClick={onToggle}>
         <Icon name="chevron" className="group-chevron" />
         <StatusIcon value={status} />

@@ -1,29 +1,49 @@
-/* Newtonite Ops. One token set; colour only where it carries meaning (status, priority, the accent). */
+/* Newtonite Ops, warm aubergine. A deep plum frame carries the brand (after Slack's sidebar, found
+   on Mobbin), coral marks what you can do, and each status has its own colour, shown as a tinted pill
+   (after Notion and Airtable). Every text pairing below clears 4.5:1. */
 :root {
-  --canvas: #f6f7f9;
+  --plum: #3b1240;
+  --plum-2: #4d1c53;
+  --on-plum: #f3e6f2;
+  --on-plum-muted: #c7a9c6;
+  --canvas: #f7f4f2;
   --surface: #ffffff;
-  --surface-2: #f9fafb;
-  --ink: #1b1e24;
-  --ink-2: #454b56;
-  --muted: #6b7280;
-  --faint: #9aa1ac;
-  --line: #e6e8ec;
-  --line-2: #d7dbe1;
-  --accent: #3a55e0;
-  --accent-hover: #2f47c4;
-  --accent-soft: #eef1fd;
-  --danger: #c93a36;
-  --danger-soft: #fdeeed;
-  --amber-bg: #fff8e6;
-  --amber-line: #f2d589;
+  --surface-2: #faf7f5;
+  --ink: #22191f;
+  --ink-2: #4a3f47;
+  --muted: #73666f;
+  --faint: #a3959e;
+  --line: #ebe5e1;
+  --line-2: #ddd4ce;
+  --accent: #c8452c;
+  --accent-hover: #ad3822;
+  --accent-soft: #fcebe6;
+  --danger: #c0352c;
+  --danger-soft: #fdecea;
+  --amber-bg: #fff6e4;
+  --amber-line: #f0d08a;
   --amber-ink: #6b4e00;
-  --st-new: #8b93a0;
-  --st-triaged: #6b7280;
-  --st-progress: #d98a0b;
-  --st-approval: #7c5cd6;
-  --st-approved: #3a55e0;
+  --st-new: #64748b;
+  --st-new-soft: #eef1f5;
+  --st-new-ink: #475569;
+  --st-triaged: #6d58d1;
+  --st-triaged-soft: #efebfc;
+  --st-triaged-ink: #5b45c4;
+  --st-progress: #d97706;
+  --st-progress-soft: #fdf0dc;
+  --st-progress-ink: #9a4a05;
+  --st-approval: #c0306f;
+  --st-approval-soft: #fce7f0;
+  --st-approval-ink: #a8255f;
+  --st-approved: #138a7e;
+  --st-approved-soft: #ddf3ef;
+  --st-approved-ink: #0f6e66;
   --st-resolved: #1e9a5a;
+  --st-resolved-soft: #e2f4e7;
+  --st-resolved-ink: #18733a;
   --st-closed: #9aa1ac;
+  --st-closed-soft: #eeeff1;
+  --st-closed-ink: #5d6470;
   --radius: 7px;
   --radius-lg: 12px;
   --font: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -443,7 +463,6 @@ button.ghost:hover:not(:disabled) {
   border-bottom: 1px solid var(--line);
 }
 .group-head:hover:not(:disabled) {
-  background: #f2f4f6;
   border-color: transparent;
 }
 .group-chevron {
@@ -1828,6 +1847,182 @@ a.button:hover {
   gap: 8px;
   align-items: center;
   margin-bottom: 10px;
+}
+
+/* Theme: the aubergine frame. The sidebar and the space around the page are plum; the page itself
+   stays white so reading is easy. */
+.shell {
+  background: var(--plum);
+}
+.content {
+  border-color: transparent;
+}
+.brand,
+.brand:hover {
+  color: #fff;
+}
+.brand-mark {
+  background: var(--accent);
+}
+.nav-link {
+  color: var(--on-plum-muted);
+}
+.nav-link .icon {
+  color: var(--on-plum-muted);
+}
+.nav-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+.nav-link.active {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  box-shadow: none;
+}
+.nav-link.active .icon {
+  color: #fff;
+}
+.nav-count {
+  color: var(--on-plum-muted);
+}
+.nav-count.hot {
+  background: var(--accent);
+}
+.rail-section {
+  color: var(--on-plum-muted);
+}
+.rail-add {
+  color: var(--on-plum-muted);
+}
+.rail-add:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+.team-link {
+  color: var(--on-plum);
+}
+.team-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+.team-link .role {
+  color: var(--on-plum-muted);
+}
+.rail-foot {
+  border-top-color: rgba(255, 255, 255, 0.14);
+}
+.who-name {
+  color: #fff;
+}
+.who-role {
+  color: var(--on-plum-muted);
+}
+.rail-foot button.ghost {
+  color: var(--on-plum);
+}
+.rail-foot button.ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: transparent;
+}
+.login .brand-mark {
+  background: var(--plum);
+}
+/* The demo's two ways in sit on the plum frame, like the app behind them. The invite-only sign-in
+   and the privacy page keep their single white card on the light canvas. */
+.login:has(.login-wide) {
+  background: radial-gradient(1200px 600px at 20% -10%, var(--plum-2), var(--plum));
+}
+.login-wide > .login-head .brand-mark {
+  background: var(--accent);
+}
+.login-wide > .login-head h1 {
+  color: #fff;
+}
+.login-wide > .login-head p,
+.login-wide > .login-foot,
+.login-wide > .error {
+  color: var(--on-plum-muted);
+}
+.login-wide > .error {
+  color: #ffb4a6;
+}
+
+/* Status as a tinted pill wherever it is written out, and a tinted header on each status group. */
+.status {
+  padding: 2px 9px 2px 7px;
+  border-radius: 999px;
+  font-weight: 500;
+  font-size: 12.5px;
+}
+.status.status-new,
+.group-new .group-head {
+  background: var(--st-new-soft);
+  color: var(--st-new-ink);
+}
+.status.status-triaged,
+.group-triaged .group-head {
+  background: var(--st-triaged-soft);
+  color: var(--st-triaged-ink);
+}
+.status.status-in_progress,
+.group-in_progress .group-head {
+  background: var(--st-progress-soft);
+  color: var(--st-progress-ink);
+}
+.status.status-awaiting_approval,
+.group-awaiting_approval .group-head {
+  background: var(--st-approval-soft);
+  color: var(--st-approval-ink);
+}
+.status.status-approved,
+.group-approved .group-head {
+  background: var(--st-approved-soft);
+  color: var(--st-approved-ink);
+}
+.status.status-resolved,
+.group-resolved .group-head {
+  background: var(--st-resolved-soft);
+  color: var(--st-resolved-ink);
+}
+.status.status-closed,
+.group-closed .group-head {
+  background: var(--st-closed-soft);
+  color: var(--st-closed-ink);
+}
+.group .group-head:hover:not(:disabled) {
+  filter: brightness(0.97);
+}
+.group-count {
+  color: inherit;
+  opacity: 0.75;
+}
+
+/* Each dashboard count has its own colour: a bar along the top and a tinted icon (after Jobber). */
+.tile {
+  box-shadow: inset 0 3px 0 var(--tile, var(--line-2));
+}
+.tile-label .icon {
+  width: 24px;
+  height: 24px;
+  padding: 5px;
+  border-radius: 7px;
+  color: var(--tile);
+  background: color-mix(in srgb, var(--tile) 13%, white);
+}
+.tile-assigned {
+  --tile: #8f4f95;
+}
+.tile-approvals {
+  --tile: var(--st-approval);
+}
+.tile-urgent {
+  --tile: var(--accent);
+}
+.tile-overdue {
+  --tile: var(--st-progress);
+}
+.tile-stale {
+  --tile: var(--st-approved);
 }
 
 @media (max-width: 1100px) {

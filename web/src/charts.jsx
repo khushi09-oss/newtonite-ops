@@ -1,17 +1,17 @@
-// Two small charts for the dashboard, in plain SVG. Palettes come from the validated set: an ordinal
-// blue ramp for workflow order (light = earliest), and categorical slots 1 and 2 for the trend.
+// Two small charts for the dashboard, in plain SVG. Both palettes pass the dataviz validator: a plum
+// ordinal ramp for workflow order (light = earliest), and plum and teal for the trend, apart under CVD.
 import { useEffect, useRef, useState } from "react";
 import { STATUS_LABEL } from "./ui";
 
 export const OPEN_ORDER = ["new", "triaged", "in_progress", "awaiting_approval", "approved"];
 export const STATUS_RAMP = {
-  new: "#86b6ef",
-  triaged: "#5598e7",
-  in_progress: "#2a78d6",
-  awaiting_approval: "#1c5cab",
-  approved: "#104281",
+  new: "#cfa0cf",
+  triaged: "#b076b2",
+  in_progress: "#8f4f95",
+  awaiting_approval: "#6a2d6d",
+  approved: "#46134a",
 };
-const SERIES = { created: "#2a78d6", resolved: "#eb6834" };
+const SERIES = { created: "#8a3d8f", resolved: "#159a8a" };
 
 function TableToggle({ table, onToggle }) {
   return (
