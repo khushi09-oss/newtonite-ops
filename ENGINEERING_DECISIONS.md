@@ -520,3 +520,23 @@ offer a team the server would refuse, or hide one it would accept. A test builds
 every kind and checks that what `/me` offers is exactly what creating an item does. A browser test
 checks that every list on screen matches `/me` for each role.
 
+## D-30 The connection pool drops dead connections at once, instead of handing them out
+
+**Situation.** On the live site, clicking a demo person after a quiet spell sometimes answered
+"Request failed 500", and the next click worked. The logs showed `psycopg.OperationalError: SSL
+connection has been closed unexpectedly`. Neon closes idle connections and suspends an idle
+database, which drops every connection at once, but the pool still held them and gave the next
+request a dead one. Any first request after a pause could fail, not only signing in.
+
+**Decision.** `db.LivePool` overrides the pool's public `getconn`, the one route every request
+takes to the database. It tests each connection with an empty query as it hands it out. A dead one
+is returned so the pool discards it, and the next is taken at once, until a live or brand-new
+connection comes. Idle connections are also retired after a minute (`max_idle=60`), before the
+database closes them itself.
+
+**Trade-off.** One tiny round trip per request, a few milliseconds next to Neon in the same
+region. The library's own `check=` option was tried first. It does test connections, but it waits
+longer after each dead one (1 s, 2 s, 4 s and on), so a pool full of dead connections took many
+seconds, or timed out entirely in the test. A test fills the pool, has the database end every
+connection, and requires the next requests to succeed within three seconds.
+

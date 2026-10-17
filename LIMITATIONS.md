@@ -83,6 +83,11 @@ adding it would take. The reasoning behind what *was* built is in
   then.
   Why: Vercel runs functions, not long-lived processes (D-18). Locally the worker runs every two
   seconds.
+- **The first request after a quiet spell is slower,** by about a second, while Neon wakes the
+  suspended database. Connections it dropped are replaced at once, so that request still succeeds
+  (D-30).
+  Why: the free Neon plan suspends an idle database to save cost. Keeping it awake would need a
+  paid plan or a request every few minutes.
 - **Preview deploys have no database.** Their pages load, but their API does not.
   Why: the only database is the production one, and previews must never write to it. Neon can
   give each preview its own branch of the database; that setting is not turned on yet.
