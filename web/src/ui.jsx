@@ -227,6 +227,11 @@ export function describeChange(e, item) {
     .join(", ");
 }
 
+// Newtonite's own mark (the serif N with an atom), wherever the brand appears.
+export function BrandMark({ size = 24 }) {
+  return <img className="brand-mark" src="/newtonite-mark.png" alt="" width={size} height={size} />;
+}
+
 // A visitor's own workspace is private; the demo people share one made-up company.
 export function DemoBanner({ workspace }) {
   return (

@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BrowserRouter, Link, Navigate, NavLink, Outlet, Route, Routes, useLocation, useMatch, useNavigate } from "react-router-dom";
 import { api } from "./api";
-import { Avatar, DemoBanner, teamSwatch } from "./ui";
+import { Avatar, BrandMark, DemoBanner, teamSwatch } from "./ui";
 import { Icon } from "./icons";
 import { LiveUpdates, pollEvery, useLiveConnected } from "./live";
 import Login from "./pages/Login";
@@ -70,7 +70,7 @@ function ShellBody({ me, demo, qc, navigate }) {
     <div className="shell">
       <nav className="rail" aria-label="Main">
         <Link to="/" className="brand">
-          <span className="brand-mark">N</span>
+          <BrandMark />
           Newtonite Ops
         </Link>
         {canCreate && (
@@ -100,33 +100,36 @@ function ShellBody({ me, demo, qc, navigate }) {
             </NavLink>
           )}
         </div>
-        {(me.teams.length > 0 || me.private) && (
-          <div className="rail-section">
-            Your teams
-            {/* On the demo a visitor's own teams are theirs to make; the dashboard's setup does it. */}
-            {me.private && (
-              <Link to="/?new-team=1" className="rail-add" title="New team" aria-label="New team">
-                <Icon name="plus" />
-              </Link>
-            )}
-          </div>
-        )}
-        {me.teams.map((t) => (
-          <Link key={t.id} to={`/items?team=${t.id}`} className="team-link">
-            <span className="team-swatch" style={{ background: teamSwatch(t.name) }} />
-            {t.name}
-            <span className="role">{t.role}</span>
-          </Link>
-        ))}
-        {/* An admin also sees the teams they are not on; they are listed, so the sidebar matches the data. */}
-        {otherTeams.length > 0 && <div className="rail-section">Other teams</div>}
-        {otherTeams.map((t) => (
-          <Link key={t.id} to={`/items?team=${t.id}`} className="team-link">
-            <span className="team-swatch" style={{ background: teamSwatch(t.name) }} />
-            {t.name}
-            <span className="role">admin</span>
-          </Link>
-        ))}
+        {/* The team lists scroll on their own, so any number of teams fits and your name stays at the foot. */}
+        <div className="rail-teams">
+          {(me.teams.length > 0 || me.private) && (
+            <div className="rail-section">
+              Your teams
+              {/* On the demo a visitor's own teams are theirs to make; the dashboard's setup does it. */}
+              {me.private && (
+                <Link to="/?new-team=1" className="rail-add" title="New team" aria-label="New team">
+                  <Icon name="plus" />
+                </Link>
+              )}
+            </div>
+          )}
+          {me.teams.map((t) => (
+            <Link key={t.id} to={`/items?team=${t.id}`} className="team-link">
+              <span className="team-swatch" style={{ background: teamSwatch(t.name) }} />
+              {t.name}
+              <span className="role">{t.role}</span>
+            </Link>
+          ))}
+          {/* An admin also sees the teams they are not on; they are listed, so the sidebar matches the data. */}
+          {otherTeams.length > 0 && <div className="rail-section">Other teams</div>}
+          {otherTeams.map((t) => (
+            <Link key={t.id} to={`/items?team=${t.id}`} className="team-link">
+              <span className="team-swatch" style={{ background: teamSwatch(t.name) }} />
+              {t.name}
+              <span className="role">admin</span>
+            </Link>
+          ))}
+        </div>
         <div className="rail-foot">
           <Avatar name={me.name} size={28} />
           <div className="who">

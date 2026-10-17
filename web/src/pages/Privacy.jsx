@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { BrandMark } from "../ui";
 
 // Public, no sign-in needed: Google links here from its consent screen.
 export default function Privacy() {
@@ -6,8 +7,8 @@ export default function Privacy() {
     <div className="login">
       <article className="login-card doc">
         <div className="login-head">
-          <Link to="/login" className="brand-mark" aria-label="Newtonite Ops">
-            N
+          <Link to="/login" aria-label="Newtonite Ops">
+            <BrandMark size={36} />
           </Link>
           <h1>Privacy</h1>
           <p className="muted">Newtonite Ops is a public demo of an internal work tracker.</p>

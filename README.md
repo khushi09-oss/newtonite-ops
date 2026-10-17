@@ -2,7 +2,9 @@
 
 An internal work tracker for operational requests: customer issues, incidents, payments to
 investigate, compliance requests, approvals. Built for the Newtonite Software Engineering
-Challenge ("Operations Under Pressure").
+Challenge ("Operations Under Pressure"). It wears Newtonite's own mark, colours and type from
+[newtonite.in](https://www.newtonite.in/) so it looks like a Newtonite tool; it is a challenge
+submission, not an official Newtonite product, and the sign-in page says so.
 
 The system is small on purpose. The effort went into the behaviours that break under real
 use, each enforced by the server and each covered by a test named after the risk:
