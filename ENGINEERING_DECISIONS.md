@@ -559,3 +559,18 @@ two people can see the same team in the same colour while their other teams diff
 The column has no default, on purpose: a new way of creating teams that forgets to choose a
 colour fails at once rather than painting every team the same.
 
+## D-32 Existing team colours are spread within what each person sees
+
+**Situation.** Migration 010 gave existing teams their colours in one key order over every team.
+On the live demo a visitor's private workspace team sorted between the demo teams, took a slot, and
+left two public teams sharing a colour. The local check missed it: the fresh database the reset
+test uses has no private teams.
+
+**Decision.** Migration 011 spreads the colours again by scope, matching the rule for new teams in
+D-31. Public teams are spread on their own in key order, and each private workspace is spread
+within itself. A test builds the live site's shape on a throwaway database, the eight demo teams
+plus a private team keyed between them, and requires eight different public colours.
+
+**Trade-off.** None worth noting. A migration that has already run is never edited, so the fix is
+a second, small one.
+
