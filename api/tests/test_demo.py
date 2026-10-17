@@ -7,9 +7,10 @@ import psycopg
 import pytest
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
+from test_admin import as_user
 from test_google import CLIENT, KEY, token
 
-from app import db, demo, google
+from app import db, demo, google, stream
 
 ADMIN = "ava.okafor@newtonite.dev"
 
@@ -33,6 +34,9 @@ def test_demo_google_visitor_gets_in_without_invite(client, demo_on):
     assert r.status_code == 200, r.text
     me = client.get("/me").json()
     assert me["name"] == "A Visitor" and me["is_admin"] is False
+    # A real person's account: hidden from the shared admin, and closed to password-free sign-in.
+    client.cookies.clear()
+    assert client.post("/auth/dev-login", json={"email": email}).status_code == 404
     assert sorted((t["name"], t["role"]) for t in me["teams"]) == [
         ("Risk", "viewer"),
         ("Support", "member"),
@@ -74,6 +78,81 @@ def test_demo_accounts_cannot_be_changed(client, login, demo_on):
         client.patch(f"/admin/users/{invited.json()['id']}", json={"active": False}).status_code
         == 200
     )
+
+
+def private_workspace():
+    """A visitor's own team, lead and urgent item, as the demo makes them: both rows marked private."""
+    tag = uuid4().hex[:8]
+    with db.pool.connection() as conn:
+        owner = conn.execute(
+            "insert into users (email, name, private) values (%s, 'Owner', true) returning id",
+            (f"owner-{tag}@gmail.com",),
+        ).fetchone()["id"]
+        team = conn.execute(
+            "insert into teams (name, key, private) values (%s, %s, true) returning id, name",
+            (f"Private {tag}", f"PV{tag.upper()}"),
+        ).fetchone()
+        conn.execute(
+            "insert into team_members (team_id, user_id, role) values (%s, %s, 'lead')",
+            (team["id"], owner),
+        )
+    mine = as_user(owner)
+    r = mine.post(
+        "/items",
+        json={"team_id": str(team["id"]), "kind": "task", "title": f"Secret {tag}", "priority": 0},
+        headers={"Idempotency-Key": str(uuid4())},
+    )
+    assert r.status_code == 201, r.text
+    return {
+        "owner": str(owner),
+        "email": f"owner-{tag}@gmail.com",
+        "team": str(team["id"]),
+        "item": r.json(),
+        "client": mine,
+    }
+
+
+def test_the_shared_admin_cannot_see_a_private_workspace_by_any_route(client, login):
+    ws = private_workspace()
+    item, team, owner = ws["item"], ws["team"], ws["owner"]
+    assert ws["client"].get(f"/items/{item['id']}").status_code == 200  # the owner still can
+
+    admin = login(ADMIN)
+    assert client.get(f"/items/{item['id']}").status_code == 404
+    assert client.get("/items", params={"team": team}).json()["items"] == []
+    assert sum(client.get("/items/counts", params={"team": team}).json()["counts"].values()) == 0
+    assert client.get("/items", params={"q": item["title"]}).json()["items"] == []
+    assert client.get(f"/teams/{team}/members").status_code == 404
+    created = client.post(
+        "/items",
+        json={"team_id": team, "kind": "task", "title": "Planted"},
+        headers={"Idempotency-Key": str(uuid4())},
+    )
+    assert created.status_code == 404
+    inbox = client.get("/inbox").json()
+    assert item["id"] not in {i["id"] for b in inbox.values() for i in b["items"]}
+    recent = client.get("/dashboard").json()["recent"]
+    assert item["id"] not in {e["item_id"] for e in recent}
+    assert stream.tick(str(uuid4()), admin, item["id"])["version"] is None
+
+    assert team not in {t["id"] for t in client.get("/admin/teams").json()["teams"]}
+    assert client.get("/admin/users", params={"q": ws["email"]}).json()["users"] == []
+    assert client.get(f"/admin/teams/{team}/members").status_code == 404
+    assert client.patch(f"/admin/users/{owner}", json={"active": False}).status_code == 404
+    assert (
+        client.put(f"/admin/teams/{team}/members/{admin['id']}", json={"role": "lead"}).status_code
+        == 404
+    )
+    invite = {
+        "email": f"x-{uuid4().hex[:8]}@example.com",
+        "name": "X",
+        "teams": [{"team_id": team, "role": "member"}],
+    }
+    assert client.post("/admin/users", json=invite).status_code == 404
+
+    # And nobody can take the account over through the demo's password-free sign-in.
+    client.cookies.clear()
+    assert client.post("/auth/dev-login", json={"email": ws["email"]}).status_code == 404
 
 
 def test_nightly_reset_needs_demo_mode_and_the_secret(client, monkeypatch):

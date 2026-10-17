@@ -437,3 +437,26 @@ field, and it is the only way the server can know what the reader actually looke
 handed out when a row is inserted, not when it commits, so a notification inserted just before the
 newest one but committed after the page loaded can still be marked. That window is one worker
 transaction long.
+
+## D-26 On the demo, what a visitor brings is private, even from the admin
+
+**Situation.** The public demo lets anyone sign in as the shared admin with one click. Admins
+skipped the membership check everywhere, so the Admin page listed the real email address of every
+visitor who had signed in with Google. The password-free demo sign-in also accepted any email, so
+anyone who knew a visitor's address could sign in as them. Own workspaces for visitors, coming
+next, would have been readable by anyone in the same way.
+
+**Decision.** Users and teams get a `private` flag. On the demo, a Google visitor's account is
+private, and later so are their workspace teams and the people they invite.
+- Admins skip the membership check only for teams that are not private. This is one fragment in the
+  item queries, plus the team lists behind the dashboard, inbox and live stream.
+- Every admin endpoint leaves private people and teams out, or answers 404 for them, the same as
+  for something that does not exist.
+- The password-free sign-in refuses private accounts, so it only reaches the shared demo people.
+
+Off the demo nothing is ever marked private, so admins see everything as before.
+
+**Trade-off.** One more condition in each admin path, and a test that walks all of them. An
+admin of a real deployment cannot see a private team either, but nothing outside demo mode creates
+one. A separate admin role scoped to "public" data was considered. It would touch the same queries
+and add a concept that only the demo needs.

@@ -29,9 +29,9 @@ RETRY_MS = 2000
 
 TICK = (
     "select ({live}) as user_id,"
-    " (select w.version from work_items w"
+    " (select w.version from work_items w join teams t on t.id = w.team_id"
     "    left join team_members m on m.team_id = w.team_id and m.user_id = %(me)s"
-    "   where w.id = %(item)s and (%(admin)s or m.user_id is not null)) as version,"
+    "   where w.id = %(item)s and ((%(admin)s and not t.private) or m.user_id is not null)) as version,"
     " (select coalesce(max(n.id), 0) from notifications n where n.user_id = %(me)s) as latest"
 ).format(
     live=auth.LIVE_SESSION.format(cols="u.id").replace("%s", "%(sid)s"),

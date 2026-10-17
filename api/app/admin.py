@@ -32,12 +32,24 @@ def record(conn, actor: dict, kind: str, **target) -> None:
     )
 
 
+def require_public(conn, team_id=None, user_id=None) -> None:
+    """404 for a private team or person, the same answer as one that does not exist. On the public
+    demo the admin account is shared, so a visitor's own account and workspace are not its to see."""
+    hidden = conn.execute(
+        "select exists (select 1 from teams where id = %s and private)"
+        " or exists (select 1 from users where id = %s and private) as hidden",
+        (team_id, user_id),
+    ).fetchone()["hidden"]
+    if hidden:
+        raise HTTPException(404, "Not Found")
+
+
 USER_VIEW = (
     "select u.id, u.email, u.name, u.is_admin, u.deactivated_at, exists (select 1 from sessions s where s.user_id = u.id) as signed_in,"
     " (select max(s.created_at) from sessions s where s.user_id = u.id) as last_sign_in,"
     " coalesce((select json_agg(json_build_object('team_id', t.id, 'team', t.name, 'role', m.role)"
     "   order by t.name) from team_members m join teams t on t.id = m.team_id"
-    "   where m.user_id = u.id), '[]') as teams"
+    "   where m.user_id = u.id and not t.private), '[]') as teams"
     " from users u"
 )
 
@@ -65,9 +77,9 @@ def list_users(
     q: str | None = None,
     limit: int = Query(50, ge=1, le=LIST_CAP),
 ):
-    where, params = "", []
+    where, params = " where not u.private", []
     if q:
-        where = " where u.email ilike %s or u.name ilike %s"
+        where += " and (u.email ilike %s or u.name ilike %s)"
         params = [f"%{q}%", f"%{q}%"]
     with db.pool.connection() as conn:
         rows = conn.execute(
@@ -102,6 +114,8 @@ def invite(body: Invite, admin: dict = Depends(require_admin)):
             ).fetchone()["id"]
         except UniqueViolation:
             raise HTTPException(409, f"{email} has already been invited")
+        for m in body.teams:
+            require_public(conn, team_id=m.team_id)
         try:
             for m in body.teams:
                 conn.execute(
@@ -134,6 +148,7 @@ def change_user(user_id: UUID, body: UserChange, admin: dict = Depends(require_a
         raise HTTPException(422, "You cannot remove your own admin access or deactivate yourself")
     with db.pool.connection() as conn, conn.transaction():
         demo.guard(conn, user_id)
+        require_public(conn, user_id=user_id)
         if conn.execute("select 1 from users where id = %s", (user_id,)).fetchone() is None:
             raise HTTPException(404, "user not found")
         if body.name is not None:
@@ -161,7 +176,8 @@ def list_teams(admin: dict = Depends(require_admin)):
     with db.pool.connection() as conn:
         rows = conn.execute(
             "select t.id, t.name, t.key, count(m.user_id) as members from teams t"
-            " left join team_members m on m.team_id = t.id group by t.id order by t.name"
+            " left join team_members m on m.team_id = t.id where not t.private"
+            " group by t.id order by t.name"
             " limit %s",
             (LIST_CAP + 1,),
         ).fetchall()
@@ -207,9 +223,11 @@ def create_team(body: NewTeam, admin: dict = Depends(require_admin)):
 @router.get("/teams/{team_id}/members")
 def team_roster(team_id: UUID, admin: dict = Depends(require_admin)):
     with db.pool.connection() as conn:
+        require_public(conn, team_id=team_id)
         rows = conn.execute(
             "select u.id, u.email, u.name, m.role, u.deactivated_at from team_members m"
-            " join users u on u.id = m.user_id where m.team_id = %s order by m.role, u.name"
+            " join users u on u.id = m.user_id where m.team_id = %s and not u.private"
+            " order by m.role, u.name"
             " limit %s",
             (team_id, LIST_CAP + 1),
         ).fetchall()
@@ -225,6 +243,7 @@ def set_role(team_id: UUID, user_id: UUID, body: RoleChange, admin: dict = Depen
     """Add someone to a team, or change their role on it."""
     with db.pool.connection() as conn, conn.transaction():
         demo.guard(conn, user_id)
+        require_public(conn, team_id, user_id)
         before = conn.execute(
             "select role from team_members where team_id = %s and user_id = %s",
             (team_id, user_id),
@@ -255,6 +274,7 @@ def remove_member(team_id: UUID, user_id: UUID, admin: dict = Depends(require_ad
     release is in the item's history and nothing stays owned by someone who can no longer see it."""
     with db.pool.connection() as conn, conn.transaction():
         demo.guard(conn, user_id)
+        require_public(conn, team_id, user_id)
         gone = conn.execute(
             "delete from team_members where team_id = %s and user_id = %s returning role",
             (team_id, user_id),
@@ -286,6 +306,7 @@ def admin_log(admin: dict = Depends(require_admin), limit: int = Query(50, ge=1,
             " join users u on u.id = e.actor_id"
             " left join users tu on tu.id = (e.target->>'user_id')::uuid"
             " left join teams tt on tt.id = (e.target->>'team_id')::uuid"
+            " where not coalesce(tu.private, false) and not coalesce(tt.private, false)"
             " order by e.id desc limit %s",
             (limit + 1,),
         ).fetchall()
@@ -313,7 +334,8 @@ def list_jobs(
             "select o.id, o.kind, o.status, o.attempts, o.last_error, o.created_at,"
             " o.next_attempt_at, o.processed_at, o.payload->>'kind' as event_kind,"
             " w.id as item_id, w.title as item_title"
-            " from outbox o left join work_items w on w.id::text = o.payload->>'item_id'"
+            " from outbox o left join (work_items w join teams t on t.id = w.team_id and not t.private)"
+            " on w.id::text = o.payload->>'item_id'"
             " where o.status = %s order by o.id desc limit %s",
             (status, limit + 1),
         ).fetchall()

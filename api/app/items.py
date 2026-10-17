@@ -29,6 +29,9 @@ COLS = (
     " w.number"
 )
 NAMES = " t.name as team_name, t.key as team_key, r.name as reporter_name, a.name as assignee_name"
+# Admins skip the membership check, except on private teams: on the public demo the admin account
+# is shared, and a visitor's own workspace must stay theirs. See migration 008.
+ADMIN_SEES = "(%(admin)s and not t.private)"
 FROM = (
     " from work_items w join teams t on t.id = w.team_id join users r on r.id = w.reporter_id"
     " left join users a on a.id = w.assignee_id"
@@ -176,9 +179,9 @@ def load_item(conn, item_id) -> dict | None:
 def require_access(conn, user: dict, item_id: UUID) -> dict:
     """The item plus the caller's role on its team. Non-members get 404 so ids cannot be probed."""
     row = conn.execute(
-        f"select {COLS},{NAMES}, case when %(admin)s then 'admin' else m.role end as role {FROM}"
+        f"select {COLS},{NAMES}, case when {ADMIN_SEES} then 'admin' else m.role end as role {FROM}"
         " left join team_members m on m.team_id = w.team_id and m.user_id = %(me)s"
-        " where w.id = %(id)s and (%(admin)s or m.user_id is not null)",
+        f" where w.id = %(id)s and ({ADMIN_SEES} or m.user_id is not null)",
         {"admin": user["is_admin"], "me": user["id"], "id": item_id},
     ).fetchone()
     if row is None:
@@ -234,7 +237,9 @@ def recent_events(conn, item_id, limit: int = 20, before_seq: int | None = None)
 def filters(user: dict, team, status, priority, assignee, q, overdue) -> tuple[list, list]:
     """The WHERE terms the list and its counts share: visibility first, then each filter given."""
     where, params = [], []
-    if not user["is_admin"]:
+    if user["is_admin"]:
+        where.append("not t.private")
+    else:
         where.append(
             "exists (select 1 from team_members m where m.team_id = w.team_id and m.user_id = %s)"
         )
@@ -372,11 +377,13 @@ def create_item(
     key: str | None = Header(None, alias="Idempotency-Key"),
 ):
     def run():
-        membership = conn.execute(
-            "select role from team_members where team_id = %s and user_id = %s",
-            (body.team_id, user["id"]),
+        team = conn.execute(
+            "select t.private, m.role from teams t left join team_members m"
+            " on m.team_id = t.id and m.user_id = %s where t.id = %s",
+            (user["id"], body.team_id),
         ).fetchone()
-        if membership is None and not user["is_admin"]:
+        membership = team if team and team["role"] else None
+        if membership is None and not (user["is_admin"] and team and not team["private"]):
             raise HTTPException(404, "team not found")
         if membership is not None and membership["role"] == "viewer" and not user["is_admin"]:
             raise HTTPException(403, "viewers cannot create items")
@@ -513,7 +520,7 @@ def team_members(team_id: UUID, user: dict = Depends(current_user)):
     query, so outsiders get 404; a team whose members are all deactivated is an empty list."""
     with db.pool.connection() as conn:
         visible = conn.execute(
-            "select 1 from teams t where t.id = %(team)s and (%(admin)s or exists ("
+            f"select 1 from teams t where t.id = %(team)s and ({ADMIN_SEES} or exists ("
             "   select 1 from team_members me where me.team_id = t.id and me.user_id = %(me)s))",
             {"team": team_id, "admin": user["is_admin"], "me": user["id"]},
         ).fetchone()

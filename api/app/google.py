@@ -78,10 +78,11 @@ def google_sign_in(body: GoogleSignIn, request: Request, response: Response):
             (email,),
         ).fetchone()
         if user is None and email in ADMIN_EMAILS:
+            # On the demo this is a real person's account beside the shared ones, so it is private.
             user = conn.execute(
-                "insert into users (email, name, is_admin) values (%s, %s, true)"
+                "insert into users (email, name, is_admin, private) values (%s, %s, true, %s)"
                 " returning id, email, name, is_admin, google_sub, deactivated_at",
-                (email, claims.get("name") or email.split("@")[0]),
+                (email, claims.get("name") or email.split("@")[0], demo.DEMO_MODE),
             ).fetchone()
         elif user is None and demo.DEMO_MODE:  # a public demo lets any verified Google account in
             user = demo.add_visitor(conn, email, claims.get("name") or email.split("@")[0], sub)
