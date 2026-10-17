@@ -61,7 +61,7 @@ export default function Items() {
   const total = counts.data ? groups.reduce((n, s) => n + counts.data.counts[s], 0) : 0;
   const open = counts.data ? groups.filter((s) => !DONE.includes(s)).reduce((n, s) => n + counts.data.counts[s], 0) : 0;
   const filtered = FILTERS.some((f) => filters[f]);
-  const canCreate = me.is_admin || me.teams.some((t) => t.role !== "viewer");
+  const canCreate = me.visible_teams.some((t) => t.can_create);
 
   const toggle = (s) =>
     setFolded((f) => {
@@ -81,7 +81,7 @@ export default function Items() {
         </div>
         <div className="head-actions">
           {/* Filtered to one of your teams: its people are one click away. */}
-          {me.teams.some((t) => t.id === filters.team) && (
+          {me.visible_teams.some((t) => t.id === filters.team) && (
             <Link to={`/teams/${filters.team}`} className="button">
               <Icon name="users" /> Members
             </Link>
@@ -108,7 +108,7 @@ export default function Items() {
         </label>
         <select aria-label="Team" value={filters.team} onChange={(e) => setFilter("team", e.target.value)}>
           <option value="">All my teams</option>
-          {me.teams.map((t) => (
+          {me.visible_teams.map((t) => (
             <option key={t.id} value={t.id}>
               {t.name}
             </option>
@@ -147,7 +147,7 @@ export default function Items() {
       {counts.isError && <div className="error">Could not load items: {counts.error.message}</div>}
       {counts.data && total === 0 && (
         <div className="empty-state">
-          {me.teams.length === 0 && !me.is_admin ? (
+          {me.visible_teams.length === 0 ? (
             <>
               <strong>You are not on a team yet.</strong>
               <Link to="/">Set up your workspace</Link>
@@ -230,7 +230,8 @@ function NewItem({ me, onDone }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const dialog = useRef(null);
-  const teams = me.teams.filter((t) => t.role !== "viewer");
+  // Exactly the teams the server lets you create on (visible_teams.can_create).
+  const teams = me.visible_teams.filter((t) => t.can_create);
   const [form, setForm] = useState({
     team_id: teams[0] ? teams[0].id : "",
     kind: "task",

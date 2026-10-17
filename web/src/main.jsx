@@ -55,7 +55,9 @@ function ShellBody({ me, demo, qc, navigate }) {
 
   const unreadCount = unread.data ? unread.data.notifications.length : 0;
   const inboxCount = dash.data ? dash.data.counts.assigned + dash.data.counts.approvals : 0;
-  const canCreate = me.is_admin || me.teams.some((t) => t.role !== "viewer");
+  // Every team list comes from the server's visible_teams: what you can see and where you may create.
+  const canCreate = me.visible_teams.some((t) => t.can_create);
+  const otherTeams = me.visible_teams.filter((t) => t.role === "admin");
   const signOut = async () => {
     // The cookie is HttpOnly, so only the server can end the session.
     await api("/auth/logout", { method: "POST" }).catch(() => {});
@@ -114,6 +116,15 @@ function ShellBody({ me, demo, qc, navigate }) {
             <span className="team-swatch" style={{ background: teamSwatch(t.name) }} />
             {t.name}
             <span className="role">{t.role}</span>
+          </Link>
+        ))}
+        {/* An admin also sees the teams they are not on; they are listed, so the sidebar matches the data. */}
+        {otherTeams.length > 0 && <div className="rail-section">Other teams</div>}
+        {otherTeams.map((t) => (
+          <Link key={t.id} to={`/items?team=${t.id}`} className="team-link">
+            <span className="team-swatch" style={{ background: teamSwatch(t.name) }} />
+            {t.name}
+            <span className="role">admin</span>
           </Link>
         ))}
         <div className="rail-foot">

@@ -17,7 +17,7 @@ function greeting() {
 
 const TILES = [
   { key: "assigned", label: "Assigned to you", icon: "inbox", hint: "Open and yours", to: "/inbox?tab=assigned" },
-  { key: "approvals", label: "Waiting for your approval", icon: "shield", hint: "On teams you lead", to: "/inbox?tab=approvals" },
+  { key: "approvals", label: "Waiting for your approval", icon: "shield", hint: "On teams where you approve", to: "/inbox?tab=approvals" },
   { key: "urgent", label: "Urgent and unclaimed", icon: "bell", hint: "Urgent or high, no owner", to: "/inbox?tab=unassigned_urgent", alert: true },
   { key: "overdue", label: "Overdue", icon: "clock", hint: "Open and past due", to: "/items?overdue=true", alert: true },
   { key: "stale", label: "Quiet for 3 days", icon: "users", hint: "Open, no activity", to: "/inbox?tab=stale" },
@@ -41,9 +41,9 @@ export default function Dashboard() {
           </h1>
           <p className="muted">
             {today}.{" "}
-            {me.teams.length === 0 && !me.is_admin
+            {me.visible_teams.length === 0
               ? "Your workspace is empty. Start with a team."
-              : `Here is what needs you across ${me.is_admin ? "every team" : `${me.teams.length} team${me.teams.length === 1 ? "" : "s"}`}.`}
+              : `Here is what needs you across ${me.visible_teams.length} team${me.visible_teams.length === 1 ? "" : "s"}.`}
           </p>
         </div>
       </header>
@@ -68,7 +68,7 @@ export default function Dashboard() {
           </div>
         </section>
       )}
-      {q.data && me.teams.length > 0 && (
+      {q.data && me.visible_teams.length > 0 && (
         <>
           <section className="tiles" aria-label="What needs you">
             {TILES.map((t) => {

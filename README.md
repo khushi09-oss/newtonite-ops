@@ -113,8 +113,11 @@ numbers point to the full reasoning in [ENGINEERING_DECISIONS.md](ENGINEERING_DE
 ### Teams and people
 
 - **Roles per team.** A viewer follows the work, a member does it, and a lead approves and
-  manages the team. Admins manage everyone.
-  *Why:* the same person often works on one team and only watches another.
+  manages the team. Admins manage everyone, and see every team that is not a private workspace.
+  The sidebar lists the teams you are on, and for an admin also "Other teams".
+  *Why:* the same person often works on one team and only watches another. Which teams you can see,
+  and where you may create items, is one rule on the server that `/me` hands to every screen, so the
+  sidebar, filters and dialogs always match the data (D-29).
 - **Team page.** Anyone on a team sees who else is on it. The lead adds people by email,
   changes roles and removes people. Removing someone releases their open items, and each release
   is in that item's history.

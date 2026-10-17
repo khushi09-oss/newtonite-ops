@@ -171,6 +171,21 @@ def apply_change(
     return row
 
 
+def visible_teams(conn, user: dict, team_id=None) -> list[dict]:
+    """Every team the caller can see, their role on it ("admin" when they see it only as an admin),
+    and whether they may create items there. The one rule behind creating an item and behind every
+    team list the screens show, so a picker can never offer a team the server would refuse."""
+    cond = " and t.id = %(team)s" if team_id is not None else ""
+    return conn.execute(
+        "select t.id, t.name, t.key, coalesce(m.role, 'admin') as role,"
+        " (%(admin)s or coalesce(m.role in ('member', 'lead'), false)) as can_create"
+        " from teams t left join team_members m on m.team_id = t.id and m.user_id = %(me)s"
+        f" where (m.user_id is not null or {ADMIN_SEES}){cond}"
+        " order by m.user_id is null, t.name",
+        {"admin": user["is_admin"], "me": user["id"], "team": team_id},
+    ).fetchall()
+
+
 def load_item(conn, item_id) -> dict | None:
     """The row with names, no access check. For responses after access has already been verified."""
     return conn.execute(f"select {COLS},{NAMES} {FROM} where w.id = %s", (item_id,)).fetchone()
@@ -377,15 +392,10 @@ def create_item(
     key: str | None = Header(None, alias="Idempotency-Key"),
 ):
     def run():
-        team = conn.execute(
-            "select t.private, m.role from teams t left join team_members m"
-            " on m.team_id = t.id and m.user_id = %s where t.id = %s",
-            (user["id"], body.team_id),
-        ).fetchone()
-        membership = team if team and team["role"] else None
-        if membership is None and not (user["is_admin"] and team and not team["private"]):
+        team = visible_teams(conn, user, body.team_id)
+        if not team:
             raise HTTPException(404, "team not found")
-        if membership is not None and membership["role"] == "viewer" and not user["is_admin"]:
+        if not team[0]["can_create"]:
             raise HTTPException(403, "viewers cannot create items")
         row = apply_change(conn, user, "created", {**body.model_dump(), "reporter_id": user["id"]})
         return _respond(conn, user, row["id"])
@@ -519,12 +529,7 @@ def team_members(team_id: UUID, user: dict = Depends(current_user)):
     """Who can be assigned: active people on the team. The caller's own membership is checked in the
     query, so outsiders get 404; a team whose members are all deactivated is an empty list."""
     with db.pool.connection() as conn:
-        visible = conn.execute(
-            f"select 1 from teams t where t.id = %(team)s and ({ADMIN_SEES} or exists ("
-            "   select 1 from team_members me where me.team_id = t.id and me.user_id = %(me)s))",
-            {"team": team_id, "admin": user["is_admin"], "me": user["id"]},
-        ).fetchone()
-        if visible is None:
+        if not visible_teams(conn, user, team_id):
             raise HTTPException(404, "team not found")
         rows = conn.execute(
             "select u.id, u.name, u.email, m.role from team_members m join users u on u.id = m.user_id"
