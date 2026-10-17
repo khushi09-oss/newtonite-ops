@@ -297,3 +297,44 @@ def test_demo_reset_restores_a_clean_seed(client):
     finally:
         admin.execute(f"drop database if exists {name} with (force)")
         admin.close()
+
+
+def test_respreading_colours_keeps_public_teams_apart_from_private_ones():
+    """Migration 011 on the live site's shape: the eight demo teams plus a visitor's private team
+    whose key falls between theirs. The public teams must end with eight different colours."""
+    name = "ops_colour_spread"
+    admin = psycopg.connect(db.DATABASE_URL, autocommit=True)
+    try:
+        admin.execute(f"drop database if exists {name}")
+        admin.execute(f"create database {name}")
+        url = db.DATABASE_URL.rsplit("/", 1)[0] + f"/{name}"
+        with ConnectionPool(url, min_size=1, max_size=2, kwargs={"row_factory": dict_row}) as fresh:
+            db.migrate(fresh)
+            demo.reset(fresh)
+            with fresh.connection() as conn:
+                lead = conn.execute(
+                    "insert into users (email, name, private) values ('v@example.com', 'V', true)"
+                    " returning id"
+                ).fetchone()["id"]
+                team = conn.execute(
+                    "insert into teams (name, key, private, color) values ('Data', 'DAT', true, 3)"
+                    " returning id"
+                ).fetchone()["id"]
+                conn.execute(
+                    "insert into team_members (team_id, user_id, role) values (%s, %s, 'lead')",
+                    (team, lead),
+                )
+                # Scramble the colours the way one key order over every team did, then respread.
+                conn.execute(
+                    "with r as (select id, (row_number() over (order by key) - 1) % 8 as s from teams)"
+                    " update teams t set color = r.s from r where r.id = t.id"
+                )
+                conn.execute((db.MIGRATIONS / "011_team_colours_by_scope.sql").read_text())
+                public = conn.execute(
+                    "select count(distinct color) as n from teams where not private"
+                ).fetchone()["n"]
+                private = conn.execute("select color from teams where id = %s", (team,)).fetchone()
+        assert public == 8 and private["color"] == 0
+    finally:
+        admin.execute(f"drop database if exists {name} with (force)")
+        admin.close()
