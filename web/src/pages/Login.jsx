@@ -161,7 +161,6 @@ function GoogleButton({ clientId, onCredential, onError }) {
 }
 
 function DevSignIn({ busy, onSignIn }) {
-  const [email, setEmail] = useState("");
   return (
     <div className="dev-signin">
       <div className="quick">
@@ -173,25 +172,6 @@ function DevSignIn({ busy, onSignIn }) {
           </button>
         ))}
       </div>
-      <details>
-        <summary className="muted small">Sign in with a seeded email instead</summary>
-        <form
-          className="dev-signin"
-          style={{ marginTop: 10 }}
-          onSubmit={(e) => {
-            e.preventDefault();
-            onSignIn(email.trim());
-          }}
-        >
-          <label>
-            Email
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="first.last@newtonite.dev" />
-          </label>
-          <button className="primary" disabled={busy || !email}>
-            Sign in
-          </button>
-        </form>
-      </details>
     </div>
   );
 }
