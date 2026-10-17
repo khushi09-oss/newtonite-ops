@@ -1,23 +1,23 @@
-/* Newtonite Ops, warm aubergine. A deep plum frame carries the brand (after Slack's sidebar, found
-   on Mobbin), coral marks what you can do, and each status has its own colour, shown as a tinted pill
-   (after Notion and Airtable). Every text pairing below clears 4.5:1. */
+/* Newtonite Ops, in Newtonite's own brand (newtonite.in): a carbon frame, their electric blue for
+   what you can do, their steel and cloud neutrals, and DM Sans. Each status keeps its own colour, shown
+   as a tinted pill (after Notion and Airtable, found on Mobbin). Every text pairing clears 4.5:1. */
 :root {
-  --plum: #3b1240;
-  --plum-2: #4d1c53;
-  --on-plum: #f3e6f2;
-  --on-plum-muted: #c7a9c6;
-  --canvas: #f7f4f2;
+  --frame: #0b0d0f;
+  --frame-2: #14171a;
+  --on-frame: #e9ecef;
+  --on-frame-muted: #9aa3ab;
+  --canvas: #f6f7f8;
   --surface: #ffffff;
-  --surface-2: #faf7f5;
-  --ink: #22191f;
-  --ink-2: #4a3f47;
-  --muted: #73666f;
-  --faint: #a3959e;
-  --line: #ebe5e1;
-  --line-2: #ddd4ce;
-  --accent: #c8452c;
-  --accent-hover: #ad3822;
-  --accent-soft: #fcebe6;
+  --surface-2: #f8f9fa;
+  --ink: #0b0d0f;
+  --ink-2: #25292d;
+  --muted: #687078;
+  --faint: #9aa3ab;
+  --line: #e9ecef;
+  --line-2: #d9dde1;
+  --accent: #2e5bff;
+  --accent-hover: #1f47e0;
+  --accent-soft: #f3f6ff;
   --danger: #c0352c;
   --danger-soft: #fdecea;
   --amber-bg: #fff6e4;
@@ -46,7 +46,7 @@
   --st-closed-ink: #5d6470;
   --radius: 7px;
   --radius-lg: 12px;
-  --font: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 * {
@@ -271,6 +271,14 @@ button.ghost:hover:not(:disabled) {
 }
 .rail-nav {
   display: contents;
+}
+.rail-teams {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  margin: 0 -4px;
+  padding: 0 4px;
 }
 .field {
   display: grid;
@@ -962,6 +970,12 @@ a.tile:hover {
 /* Sign-in, and the privacy page that shares its card. */
 .login-foot {
   justify-self: center;
+}
+.login-note {
+  justify-self: center;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
 }
 .doc {
   width: min(640px, 100%);
@@ -1849,10 +1863,10 @@ a.button:hover {
   margin-bottom: 10px;
 }
 
-/* Theme: the aubergine frame. The sidebar and the space around the page are plum; the page itself
-   stays white so reading is easy. */
+/* Theme: the carbon frame. The sidebar and the space around the page are Newtonite carbon; the page
+   itself stays white so reading is easy. */
 .shell {
-  background: var(--plum);
+  background: var(--frame);
 }
 .content {
   border-color: transparent;
@@ -1862,13 +1876,16 @@ a.button:hover {
   color: #fff;
 }
 .brand-mark {
-  background: var(--accent);
+  display: block;
+  border-radius: 6px;
+  background: #000;
+  object-fit: cover;
 }
 .nav-link {
-  color: var(--on-plum-muted);
+  color: var(--on-frame-muted);
 }
 .nav-link .icon {
-  color: var(--on-plum-muted);
+  color: var(--on-frame-muted);
 }
 .nav-link:hover {
   background: rgba(255, 255, 255, 0.08);
@@ -1883,30 +1900,30 @@ a.button:hover {
   color: #fff;
 }
 .nav-count {
-  color: var(--on-plum-muted);
+  color: var(--on-frame-muted);
 }
 .nav-count.hot {
   background: var(--accent);
 }
 .rail-section {
-  color: var(--on-plum-muted);
+  color: var(--on-frame-muted);
 }
 .rail-add {
-  color: var(--on-plum-muted);
+  color: var(--on-frame-muted);
 }
 .rail-add:hover {
   color: #fff;
   background: rgba(255, 255, 255, 0.1);
 }
 .team-link {
-  color: var(--on-plum);
+  color: var(--on-frame);
 }
 .team-link:hover {
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
 }
 .team-link .role {
-  color: var(--on-plum-muted);
+  color: var(--on-frame-muted);
 }
 .rail-foot {
   border-top-color: rgba(255, 255, 255, 0.14);
@@ -1915,33 +1932,31 @@ a.button:hover {
   color: #fff;
 }
 .who-role {
-  color: var(--on-plum-muted);
+  color: var(--on-frame-muted);
 }
 .rail-foot button.ghost {
-  color: var(--on-plum);
+  color: var(--on-frame);
 }
 .rail-foot button.ghost:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.1);
   border-color: transparent;
 }
 .login .brand-mark {
-  background: var(--plum);
+  border-radius: 8px;
 }
-/* The demo's two ways in sit on the plum frame, like the app behind them. The invite-only sign-in
+/* The demo's two ways in sit on the carbon frame, like the app behind them. The invite-only sign-in
    and the privacy page keep their single white card on the light canvas. */
 .login:has(.login-wide) {
-  background: radial-gradient(1200px 600px at 20% -10%, var(--plum-2), var(--plum));
-}
-.login-wide > .login-head .brand-mark {
-  background: var(--accent);
+  background: radial-gradient(1200px 600px at 20% -10%, var(--frame-2), var(--frame));
 }
 .login-wide > .login-head h1 {
   color: #fff;
 }
 .login-wide > .login-head p,
 .login-wide > .login-foot,
+.login-wide > .login-note,
 .login-wide > .error {
-  color: var(--on-plum-muted);
+  color: var(--on-frame-muted);
 }
 .login-wide > .error {
   color: #ffb4a6;
@@ -2010,13 +2025,13 @@ a.button:hover {
   background: color-mix(in srgb, var(--tile) 13%, white);
 }
 .tile-assigned {
-  --tile: #8f4f95;
+  --tile: var(--accent);
 }
 .tile-approvals {
   --tile: var(--st-approval);
 }
 .tile-urgent {
-  --tile: var(--accent);
+  --tile: var(--danger);
 }
 .tile-overdue {
   --tile: var(--st-progress);
@@ -2058,6 +2073,7 @@ a.button:hover {
   }
   .rail-new,
   .rail-section,
+  .rail-teams,
   .team-link {
     display: none;
   }

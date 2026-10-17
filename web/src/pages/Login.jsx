@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
+import { BrandMark } from "../ui";
 
 // The four roles worth trying first: each sees the same app differently.
 const ROLES = [
@@ -65,7 +66,7 @@ export default function Login() {
       <div className="login">
         <div className="login-wide">
           <div className="login-head">
-            <span className="brand-mark">N</span>
+            <BrandMark size={36} />
             <h1>Newtonite Ops</h1>
             <p className="muted">A tracker for the operational work a company runs on. Try it two ways.</p>
           </div>
@@ -101,6 +102,7 @@ export default function Login() {
           </div>
           {error && <p className="error">{error}</p>}
           {privacy}
+          <p className="login-note">Built for the Newtonite software engineering challenge. Not an official Newtonite product.</p>
         </div>
       </div>
     );
@@ -110,7 +112,7 @@ export default function Login() {
     <div className="login">
       <div className="login-card">
         <div className="login-head">
-          <span className="brand-mark">N</span>
+          <BrandMark size={36} />
           <h1>Sign in to Newtonite Ops</h1>
           <p className="muted">
             {clientId ? "Use the Google account your admin invited." : "Operational work for every team, in one place."}

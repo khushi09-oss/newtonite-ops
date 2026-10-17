@@ -74,7 +74,10 @@ function findProblems() {
     .filter((el) => visible(el) && el.scrollWidth > el.clientWidth + 1)
     .map((el) => `"${el.textContent.trim().slice(0, 30)}" does not fit`);
   const sideways = document.documentElement.scrollWidth > window.innerWidth + 1 ? [`page is ${document.documentElement.scrollWidth}px wide`] : [];
-  return [...new Set([...overlaps, ...cramped, ...sideways])];
+  // The sidebar is as tall as the window; anything inside it that does not fit must scroll, not spill.
+  const rail = document.querySelector(".rail");
+  const spilled = rail && rail.scrollHeight > rail.clientHeight + 1 ? [`sidebar spills ${rail.scrollHeight - rail.clientHeight}px below the window`] : [];
+  return [...new Set([...overlaps, ...cramped, ...sideways, ...spilled])];
 }
 
 async function check(page, label, problems) {
