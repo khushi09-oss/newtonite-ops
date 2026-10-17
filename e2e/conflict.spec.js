@@ -1,7 +1,12 @@
 // Two real browsers, two people, one item. The server rules are covered by the API tests; these check
-// what each person actually sees. Uses the demo sign-in, so it runs against the local stack or the demo.
+// what each person actually sees. Uses the demo sign-in.
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
+
+// These create items, and nothing can be deleted, so they would litter the shared live demo until the
+// nightly reset. They run on the local stack only; smoke.spec.js is the read-only check for live.
+const LIVE = Boolean(process.env.BASE_URL) && !/localhost|127\.0\.0\.1/.test(process.env.BASE_URL);
+test.skip(LIVE, "writes items, so it runs on the local stack only");
 
 const MEMBER = "Risk member";
 const LEAD = "Risk lead";

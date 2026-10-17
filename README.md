@@ -117,7 +117,7 @@ Browser tests drive two real browsers as two people, with Playwright. With the s
 ```bash
 cd e2e && npm install && npx playwright install chromium
 npx playwright test                                              # against the local stack
-BASE_URL=https://newtonite-ops-vert.vercel.app npx playwright test  # against the live demo
+BASE_URL=https://newtonite-ops-vert.vercel.app npx playwright test  # live: read-only smoke only
 ```
 
 Tests run against the real Postgres in the stack, not SQLite, because the claim race, the
