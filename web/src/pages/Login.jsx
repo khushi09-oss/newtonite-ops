@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import { DemoBanner } from "../ui";
 
 // The four roles worth trying first: each sees the same app differently.
 const ROLES = [
@@ -51,6 +50,62 @@ export default function Login() {
   if (config.isError) return <div className="login"><p className="error">Could not reach the server: {config.error.message}</p></div>;
   const { google_client_id: clientId, dev_login: devLogin, demo } = config.data;
 
+  const devSignIn = devLogin && (
+    <DevSignIn busy={busy} onSignIn={(email) => finish(() => api("/auth/dev-login", { method: "POST", body: { email } }))} />
+  );
+  const privacy = (
+    <Link to="/privacy" className="muted small login-foot">
+      Privacy
+    </Link>
+  );
+
+  // The public demo offers two ways in: the shared demo people, or an empty workspace of your own.
+  if (demo) {
+    return (
+      <div className="login">
+        <div className="login-wide">
+          <div className="login-head">
+            <span className="brand-mark">N</span>
+            <h1>Newtonite Ops</h1>
+            <p className="muted">A tracker for the operational work a company runs on. Try it two ways.</p>
+          </div>
+          <div className="paths">
+            <section className="path">
+              <h2>Explore the demo</h2>
+              <p className="muted">
+                A company's worth of made-up work, shared by every visitor. Pick a seat to see the app from it.
+              </p>
+              {devSignIn}
+            </section>
+            <section className="path">
+              <h2>Start your own workspace</h2>
+              <p className="muted">Sign in with Google and start from empty, the way a real team would.</p>
+              <ol className="path-steps">
+                <li>Create a team</li>
+                <li>Add teammates by email</li>
+                <li>Run work through it, from new to closed</li>
+              </ol>
+              {clientId ? (
+                <GoogleButton
+                  clientId={clientId}
+                  onCredential={(credential) => finish(() => api("/auth/google", { method: "POST", body: { credential } }))}
+                  onError={setError}
+                />
+              ) : (
+                <p className="muted">Google sign-in is not set up on this server.</p>
+              )}
+              <p className="muted small">
+                Private to you and the people you add. Cleared every night at 04:00 Singapore time.
+              </p>
+            </section>
+          </div>
+          {error && <p className="error">{error}</p>}
+          {privacy}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="login">
       <div className="login-card">
@@ -58,33 +113,22 @@ export default function Login() {
           <span className="brand-mark">N</span>
           <h1>Sign in to Newtonite Ops</h1>
           <p className="muted">
-            {clientId
-              ? demo
-                ? "Use any Google account. In this demo you join the Support team."
-                : "Use the Google account your admin invited."
-              : "Operational work for every team, in one place."}
+            {clientId ? "Use the Google account your admin invited." : "Operational work for every team, in one place."}
           </p>
         </div>
-        {demo && <DemoBanner />}
         {clientId ? (
-          <>
-            <GoogleButton
-              clientId={clientId}
-              onCredential={(credential) =>
-                finish(() => api("/auth/google", { method: "POST", body: { credential } }))
-              }
-              onError={setError}
-            />
-          </>
+          <GoogleButton
+            clientId={clientId}
+            onCredential={(credential) => finish(() => api("/auth/google", { method: "POST", body: { credential } }))}
+            onError={setError}
+          />
         ) : (
           !devLogin && <p className="muted">Sign-in is not configured on this server.</p>
         )}
         {error && <p className="error">{error}</p>}
-        {devLogin && clientId && <div className="or">or try it as one of the demo people</div>}
-        {devLogin && <DevSignIn busy={busy} onSignIn={(email) => finish(() => api("/auth/dev-login", { method: "POST", body: { email } }))} />}
-        <Link to="/privacy" className="muted small login-foot">
-          Privacy
-        </Link>
+        {devLogin && clientId && <div className="or">or sign in as a seeded person</div>}
+        {devSignIn}
+        {privacy}
       </div>
     </div>
   );

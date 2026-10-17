@@ -95,7 +95,17 @@ function ShellBody({ me, demo, qc, navigate }) {
             <Icon name="shield" /> Admin
           </NavLink>
         )}
-        {me.teams.length > 0 && <div className="rail-section">Your teams</div>}
+        {(me.teams.length > 0 || me.private) && (
+          <div className="rail-section">
+            Your teams
+            {/* On the demo a visitor's own teams are theirs to make; the dashboard's setup does it. */}
+            {me.private && (
+              <Link to="/?new-team=1" className="rail-add" title="New team" aria-label="New team">
+                <Icon name="plus" />
+              </Link>
+            )}
+          </div>
+        )}
         {me.teams.map((t) => (
           <Link key={t.id} to={`/items?team=${t.id}`} className="team-link">
             <span className="team-swatch" style={{ background: teamSwatch(t.name) }} />
@@ -115,7 +125,7 @@ function ShellBody({ me, demo, qc, navigate }) {
         </div>
       </nav>
       <main className="content">
-        {demo && <DemoBanner />}
+        {demo && <DemoBanner workspace={me.private} />}
         <Outlet context={me} />
       </main>
     </div>
