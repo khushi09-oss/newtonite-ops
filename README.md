@@ -268,6 +268,7 @@ before testing again.
 | A shared demo account joins or makes a workspace | `test_workspace_rules_keep_the_shared_demo_accounts_out` |
 | A screen breaks for one of the roles on the live site | Browser: `smoke.spec.js`, read-only, every screen as each demo person |
 | Text is drawn over other text, or a page scrolls sideways | Browser: `layout.spec.js`, read-only, every screen and dialog as each demo person, desktop and phone |
+| The workflow breaks somewhere between new and closed | Browser: `workflow.spec.js`, one item through every status with a member, the lead, a viewer and an outsider |
 
 ## How it is built
 

@@ -140,7 +140,7 @@ adding it would take. The reasoning behind what *was* built is in
 ## Testing
 
 - **The browser tests cover what only a browser shows:** a stale edit, a claim race, live
-  updates, and a layout check of every screen and
+  updates, one item's whole workflow across four people, and a layout check of every screen and
   dialog at desktop and phone width. The layout check catches text drawn over text, sideways
   scroll and labels too long for their buttons. It cannot judge whether a screen looks good, so
   that is still checked by eye from its screenshots. There are no component tests.
