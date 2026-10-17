@@ -34,8 +34,9 @@ Kept current with every PR. Each line says what is missing and why it was left o
   inbox and the list refresh on those events or once a minute.
 - Notifications are in-app only. No email or chat delivery.
 - No attachments, no bulk edits, no soft delete.
-- Invitations are not emailed. The admin creates the person and tells them to sign in with
-  Google; there is no email delivery in the system.
+- Invitations are not emailed: there is no sending domain, so the system has no email delivery.
+  After a lead adds someone, the app gives them a ready message to copy and send themselves. An
+  admin who invites someone from the Admin page tells them to sign in with Google.
 - Off the demo, admins decide who can get in. A team lead can add people to their own team, but
   only people who already have an account; anyone new needs an admin to invite them first.
 - On the demo, a visitor's own workspace is a set of teams they lead. There is no named

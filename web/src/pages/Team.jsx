@@ -49,14 +49,48 @@ export function NewTeamForm({ onCreated, autoFocus }) {
   );
 }
 
+// Nothing is emailed (there is no sending domain), so the lead gets a message to send themselves.
+export function InviteNote({ invite }) {
+  const [copied, setCopied] = useState(null);
+  const text =
+    `I've added you to ${invite.team} on Newtonite Ops as a ${invite.role}. ` +
+    `Sign in with Google as ${invite.email}: ${window.location.origin}/login`;
+  return (
+    <div className="invite-note">
+      <p className="small">
+        Added <strong>{invite.email}</strong>. Nothing is emailed, so send them this yourself:
+      </p>
+      <textarea readOnly rows={2} value={text} aria-label="Invite message" onFocus={(e) => e.target.select()} />
+      <div className="invite-actions">
+        <button
+          type="button"
+          onClick={() =>
+            // The clipboard can be refused (an insecure page, a denied permission); the text stays selectable.
+            navigator.clipboard.writeText(text).then(
+              () => setCopied(true),
+              () => setCopied(false),
+            )
+          }
+        >
+          {copied ? "Copied" : "Copy invite"}
+        </button>
+        {copied === false && <span className="muted small">Could not copy. Select the text above instead.</span>}
+      </div>
+    </div>
+  );
+}
+
 // Add someone by email, or change the role of someone already on the team.
-export function AddMemberForm({ team, demo }) {
+export function AddMemberForm({ team, demo, onAdded }) {
   const qc = useQueryClient();
   const blank = { email: "", name: "", role: "member" };
   const [form, setForm] = useState(blank);
   const add = useMutation({
     mutationFn: () => api(`/teams/${team.id}/members`, { method: "PUT", body: { ...form, name: form.name.trim() || null } }),
-    onSuccess: () => setForm(blank),
+    onSuccess: (added) => {
+      setForm(blank);
+      onAdded?.({ ...added, team: team.name });
+    },
     onSettled: () => qc.invalidateQueries({ queryKey: ["members", team.id] }),
   });
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
@@ -78,15 +112,17 @@ export function AddMemberForm({ team, demo }) {
       <button className="primary" disabled={add.isPending || !form.email}>
         Add
       </button>
-      <p className={`small ${add.isError ? "error" : "muted"}`}>
-        {add.isError
-          ? add.error.message
-          : add.isSuccess
-            ? `Added. They sign in with Google as ${add.data.email}.`
+      {add.isSuccess && !onAdded ? (
+        <InviteNote invite={{ ...add.data, team: team.name }} />
+      ) : (
+        <p className={`small ${add.isError ? "error" : "muted"}`}>
+          {add.isError
+            ? add.error.message
             : demo
-              ? "Nothing is emailed. Tell them to open this site and sign in with Google using that address."
+              ? "After adding them, you get an invite message to send them yourself."
               : "They need an account already. An admin invites anyone new."}
-      </p>
+        </p>
+      )}
     </form>
   );
 }

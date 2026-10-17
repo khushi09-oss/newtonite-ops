@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useOutletContext, useSearchParams } from "react-router-dom";
 import { api } from "../api";
@@ -5,7 +6,7 @@ import { TeamBars, TrendChart } from "../charts";
 import { Icon } from "../icons";
 import { pollEvery, useLiveConnected } from "../live";
 import { Avatar, ItemKey, Time, describeEvent, teamSwatch } from "../ui";
-import { AddMemberForm, NewTeamForm } from "./Team";
+import { AddMemberForm, InviteNote, NewTeamForm } from "./Team";
 
 const FEED_SIZE = 8;
 
@@ -158,6 +159,7 @@ export default function Dashboard() {
 
 function Setup({ me, hasItems }) {
   const navigate = useNavigate();
+  const [invite, setInvite] = useState(null);
   const team = me.teams.find((t) => t.role === "lead");
   const members = useQuery({
     queryKey: ["members", team?.id],
@@ -199,9 +201,11 @@ function Setup({ me, hasItems }) {
               <strong>{s.title}</strong>
               <span className="muted small">{s.hint}</span>
               {i === current && i === 0 && <NewTeamForm autoFocus />}
+              {/* The step completes as soon as someone is added; the message to send them stays. */}
+              {i === 1 && invite && <InviteNote invite={invite} />}
               {i === current && i === 1 && (
                 <>
-                  <AddMemberForm team={team} demo />
+                  <AddMemberForm team={team} demo onAdded={setInvite} />
                   <button className="link small" onClick={() => navigate("/items?new=1")}>
                     Skip for now and create an item
                   </button>
