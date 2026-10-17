@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { DemoBanner } from "../ui";
@@ -82,6 +82,9 @@ export default function Login() {
         {error && <p className="error">{error}</p>}
         {devLogin && clientId && <div className="or">or try it as one of the demo people</div>}
         {devLogin && <DevSignIn busy={busy} onSignIn={(email) => finish(() => api("/auth/dev-login", { method: "POST", body: { email } }))} />}
+        <Link to="/privacy" className="muted small login-foot">
+          Privacy
+        </Link>
       </div>
     </div>
   );
