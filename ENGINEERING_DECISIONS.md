@@ -480,3 +480,21 @@ leads can now manage their own team.
 **Trade-off.** A workspace has no name of its own, no admin and no billing, and the nightly reset
 clears it. That is the right size for a demo that shows the product. A real multi-company service
 would add organisations as their own layer.
+
+## D-28 No email yet; a lead copies an invite message instead
+
+**Situation.** Adding someone to a team gave them an account, but nothing told them. Real invite
+emails need a sending domain verified with a provider such as Resend (DNS records the owner
+adds). This project has no domain, and a `vercel.app` address cannot be verified. Without one,
+a provider only delivers to the account owner's own inbox. The public demo adds a second
+problem: anyone can sign in and type any address, so sending mail safely needs limits per sender
+and per recipient first.
+
+**Decision.** Send nothing. After a lead adds someone, the app shows a ready message: the team,
+the role, the address to sign in with, and the sign-in link. A Copy invite button puts it on the
+clipboard for the lead to paste into chat or their own email.
+
+**Trade-off.** The lead does one more step, and nobody is told automatically. When a domain
+exists, the email becomes an `invite_email` outbox handler. It would be queued in the same
+transaction as the membership, retried, and sent with a unique key per invite so a retry never
+sends twice. The copy button stays as a fallback.
