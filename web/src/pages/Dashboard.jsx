@@ -82,7 +82,7 @@ export default function Dashboard() {
                   <div className="tile-hint">{t.hint}</div>
                 </>
               );
-              const cls = `tile ${t.alert && n > 0 ? "alert" : ""}`;
+              const cls = `tile tile-${t.key} ${t.alert && n > 0 ? "alert" : ""}`;
               return t.to ? (
                 <Link key={t.key} to={t.to} className={cls}>
                   {body}
