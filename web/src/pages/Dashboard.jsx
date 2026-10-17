@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, useOutletContext } from "react-router-dom";
+import { Link, useNavigate, useOutletContext, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { TeamBars, TrendChart } from "../charts";
 import { Icon } from "../icons";
 import { pollEvery, useLiveConnected } from "../live";
 import { Avatar, ItemKey, Time, describeEvent, teamSwatch } from "../ui";
+import { AddMemberForm, NewTeamForm } from "./Team";
 
 const FEED_SIZE = 8;
 
@@ -26,6 +27,8 @@ export default function Dashboard() {
   const live = useLiveConnected();
   const q = useQuery({ queryKey: ["dashboard"], queryFn: () => api("/dashboard"), refetchInterval: pollEvery(live) });
   const first = me.name.split(" ")[0];
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
   const today = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
 
   return (
@@ -36,14 +39,35 @@ export default function Dashboard() {
             {greeting()}, {first}
           </h1>
           <p className="muted">
-            {today}. Here is what needs you across {me.is_admin ? "every team" : `${me.teams.length} team${me.teams.length === 1 ? "" : "s"}`}.
+            {today}.{" "}
+            {me.teams.length === 0 && !me.is_admin
+              ? "Your workspace is empty. Start with a team."
+              : `Here is what needs you across ${me.is_admin ? "every team" : `${me.teams.length} team${me.teams.length === 1 ? "" : "s"}`}.`}
           </p>
         </div>
       </header>
 
       {q.isError && <p className="error">Could not load the dashboard: {q.error.message}</p>}
       {q.isPending && <div className="page-loading">Loading the dashboard</div>}
-      {q.data && (
+      {/* A visitor's own workspace starts empty: walk its owner through it. Someone added to another
+          person's team has nothing to set up. */}
+      {me.private && q.data && (me.teams.length === 0 || me.teams.some((t) => t.role === "lead")) && (
+        <Setup me={me} hasItems={q.data.recent.length > 0} />
+      )}
+      {me.private && me.teams.length > 0 && params.get("new-team") && (
+        <section className="card setup" aria-label="New team">
+          <div className="card-head">
+            <div>
+              <h2>New team</h2>
+              <p>You become its lead, and only the people you add can see it.</p>
+            </div>
+          </div>
+          <div className="card-body">
+            <NewTeamForm autoFocus onCreated={(t) => navigate(`/teams/${t.id}`)} />
+          </div>
+        </section>
+      )}
+      {q.data && me.teams.length > 0 && (
         <>
           <section className="tiles" aria-label="What needs you">
             {TILES.map((t) => {
@@ -129,5 +153,69 @@ export default function Dashboard() {
         </>
       )}
     </div>
+  );
+}
+
+function Setup({ me, hasItems }) {
+  const navigate = useNavigate();
+  const team = me.teams.find((t) => t.role === "lead");
+  const members = useQuery({
+    queryKey: ["members", team?.id],
+    queryFn: () => api(`/teams/${team.id}/members`),
+    enabled: Boolean(team),
+  });
+  const steps = [
+    { title: "Create your first team", done: Boolean(team), hint: "You become its lead. Items on it get the team's own key, like PAY-1." },
+    {
+      title: "Add a teammate",
+      done: (members.data?.members.length || 0) > 1,
+      hint: "By their Google email. Leads approve work, members do it, viewers follow it.",
+    },
+    { title: "Create your first item", done: hasItems, hint: "Then claim it, request approval, and close it." },
+  ];
+  // Wait for the roster, or a finished workspace flashes its setup card on every load.
+  if (team && members.isPending) return null;
+  if (steps.every((s) => s.done)) return null;
+  const current = steps.findIndex((s) => !s.done);
+
+  return (
+    <section className="card setup" aria-label="Set up your workspace">
+      <div className="card-head">
+        <div>
+          <h2>Set up your workspace</h2>
+          <p>Three steps to run real work through it. Only you and the people you add can see it.</p>
+        </div>
+        <span className="muted small">
+          {steps.filter((s) => s.done).length} of {steps.length} done
+        </span>
+      </div>
+      <ol className="steps">
+        {steps.map((s, i) => (
+          <li key={s.title} className={s.done ? "done" : i === current ? "current" : ""}>
+            <span className="step-mark" aria-hidden="true">
+              {s.done ? "✓" : i + 1}
+            </span>
+            <div className="step-body">
+              <strong>{s.title}</strong>
+              <span className="muted small">{s.hint}</span>
+              {i === current && i === 0 && <NewTeamForm autoFocus />}
+              {i === current && i === 1 && (
+                <>
+                  <AddMemberForm team={team} demo />
+                  <button className="link small" onClick={() => navigate("/items?new=1")}>
+                    Skip for now and create an item
+                  </button>
+                </>
+              )}
+              {i === current && i === 2 && (
+                <button className="primary" onClick={() => navigate("/items?new=1")}>
+                  New item
+                </button>
+              )}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }

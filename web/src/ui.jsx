@@ -227,11 +227,13 @@ export function describeChange(e, item) {
     .join(", ");
 }
 
-export function DemoBanner() {
+// A visitor's own workspace is private; the demo people share one made-up company.
+export function DemoBanner({ workspace }) {
   return (
     <div className="demo-banner" role="note">
-      This is a public demo. The people and items are made up, everyone shares them, and they reset every
-      night at 04:00 Singapore time.
+      {workspace
+        ? "Your workspace is private to you and the people you add. Like the rest of this demo, it is cleared every night at 04:00 Singapore time."
+        : "This is a public demo. The people and items are made up, everyone shares them, and they reset every night at 04:00 Singapore time."}
     </div>
   );
 }

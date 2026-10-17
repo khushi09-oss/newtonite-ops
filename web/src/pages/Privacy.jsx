@@ -17,7 +17,7 @@ export default function Privacy() {
         <ul>
           <li>Your name and email address, and the account id Google gives this app.</li>
           <li>A session cookie that keeps you signed in. It holds a random id and nothing else.</li>
-          <li>What you do in the app: items you create, comments, status changes and who made them.</li>
+          <li>What you do in the app: your teams, the people you add to them by email, items, comments and status changes.</li>
           <li>Your IP address, only as a counter that limits sign-in attempts. It is deleted within an hour.</li>
         </ul>
         <p>We do not ask Google for anything else, and we never see your password.</p>
@@ -30,9 +30,11 @@ export default function Privacy() {
 
         <h2>Who sees it</h2>
         <p>
-          The demo is shared. Other visitors can see your name and what you write on the teams you join. Nothing is sold
-          or shared for advertising, and the app has no analytics or tracking. The site runs on Vercel and stores its
-          data with Neon, who process it only to host the app.
+          Your workspace is private. Only the people you add to your teams see it, and they see your name and what you
+          write there. The shared demo accounts, the demo admin included, cannot see your account or your workspace,
+          and nobody can sign in as you without your Google account. Nothing is sold or shared for advertising, and
+          the app has no analytics or tracking. The site runs on Vercel and stores its data with Neon, who process it
+          only to host the app.
         </p>
 
         <h2>Questions or removal</h2>
