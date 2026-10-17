@@ -63,6 +63,80 @@ def test_viewer_sees_but_cannot_create(client, login, team_id):
     assert client.post("/items", json=body, headers=key).status_code == 404
 
 
+def as_user(user_id) -> TestClient:
+    c = TestClient(app)
+    c.cookies.set("session", session_cookie(user_id))
+    return c
+
+
+def check_offered_teams(c, label: str) -> None:
+    """What /me offers this person must be exactly what the server lets them do."""
+    with db.pool.connection() as conn:
+        public = {r["id"] for r in conn.execute("select id from teams where not private")}
+        private = {r["id"] for r in conn.execute("select id from teams where private")}
+    me = c.get("/me").json()
+    seen = {UUID(t["id"]): t for t in me["visible_teams"]}
+    mine = {UUID(t["id"]) for t in me["teams"]}
+    assert mine <= set(seen), label  # every team you are on is offered
+    assert set(seen) == (public | (mine & private) if me["is_admin"] else mine), label
+    # One team of each role they hold, plus one they cannot see: creating there must answer
+    # exactly what /me promised (201 may create, 403 sees but may not, 404 cannot see).
+    picks = {t["role"]: tid for tid, t in seen.items()}
+    unseen = sorted((public | private) - set(seen))
+    for tid in [*picks.values(), *unseen[:1]]:
+        r = c.post(
+            "/items",
+            json={"team_id": str(tid), "kind": "task", "title": "Offered team check"},
+            headers={"Idempotency-Key": str(uuid4())},
+        )
+        expected = 404 if tid not in seen else 201 if seen[tid]["can_create"] else 403
+        assert r.status_code == expected, (label, seen.get(tid), r.text)
+
+
+def test_every_team_the_screens_offer_matches_what_the_server_allows(client, login, monkeypatch):
+    """The screens build every team list from /me's visible_teams. The rule is checked for every kind
+    of account, the shared demo people and brand-new ones made the ways real people arrive."""
+    from app import demo
+
+    # A new Google visitor on the demo: nothing at first, then their own workspace team.
+    monkeypatch.setattr(demo, "DEMO_MODE", True)
+    with db.pool.connection() as conn:
+        uid = conn.execute(
+            "insert into users (email, name, private) values (%s, 'New visitor', true) returning id",
+            (f"visitor-{uuid4().hex[:8]}@gmail.com",),
+        ).fetchone()["id"]
+    visitor = as_user(uid)
+    check_offered_teams(visitor, "new visitor, no teams yet")
+    assert visitor.post("/teams", json={"name": "Visitor ops"}).status_code == 201
+    check_offered_teams(visitor, "new visitor with a workspace team")
+    monkeypatch.setattr(demo, "DEMO_MODE", False)
+
+    # People an admin invites: a member, a viewer, and a new admin who is on no team at all.
+    login("ava.okafor@newtonite.dev")
+    with db.pool.connection() as conn:
+        risk, cmp = (
+            conn.execute("select id from teams where name = %s", (n,)).fetchone()["id"]
+            for n in ("Risk", "Compliance")
+        )
+    invited = []
+    for label, body in [
+        ("new member", {"teams": [{"team_id": str(risk), "role": "member"}]}),
+        ("new viewer", {"teams": [{"team_id": str(cmp), "role": "viewer"}]}),
+        ("new admin on no team", {"is_admin": True}),
+    ]:
+        email = f"new-{uuid4().hex[:8]}@example.com"
+        r = client.post("/admin/users", json={"email": email, "name": "New person", **body})
+        assert r.status_code == 201, r.text
+        invited.append((label, r.json()["id"]))
+    for label, user_id in invited:
+        check_offered_teams(as_user(user_id), label)
+
+    # And the shared demo people.
+    for person in ["ava.okafor", "finn.okafor", "dev.mehta", "ben.okafor"]:
+        login(f"{person}@newtonite.dev")
+        check_offered_teams(client, person)
+
+
 def test_viewer_cannot_claim(client, login):
     login("ben.okafor@newtonite.dev")
     item = one_item("Risk", status="new")

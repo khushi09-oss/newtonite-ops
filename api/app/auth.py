@@ -120,10 +120,14 @@ def logout(request: Request, response: Response):
 
 @router.get("/me")
 def me(user: dict = Depends(current_user)):
+    """The caller, the teams they are on, and every team they can see. The screens build every team
+    list from `visible_teams`, the same rule the item routes use (app.items.visible_teams)."""
+    from app.items import visible_teams  # items imports this module for current_user
+
     with db.pool.connection() as conn:
         teams = conn.execute(
             "select t.id, t.name, t.key, m.role from team_members m join teams t on t.id = m.team_id"
             " where m.user_id = %s order by t.name",
             (user["id"],),
         ).fetchall()
-    return {**user, "teams": teams}
+        return {**user, "teams": teams, "visible_teams": visible_teams(conn, user)}

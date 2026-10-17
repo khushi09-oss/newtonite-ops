@@ -51,10 +51,6 @@ class Session:
             return err.code, json.loads(raw) if raw else None
 
 
-def email_of(name: str) -> str:
-    return name.lower().replace(" ", ".") + "@newtonite.dev"
-
-
 def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -70,7 +66,13 @@ def main() -> int:
         return 2
     risk = next(t for t in lead.call("GET", "/me")[1]["teams"] if t["name"] == "Risk")
     members = lead.call("GET", f"/teams/{risk['id']}/members")[1]["members"]
-    people = [Session(args.base, email_of(m["name"])) for m in members if m["role"] != "viewer"]
+    # The shared demo people only, by their real addresses: anyone else on Risk (an invite made from
+    # the Admin page, say) has no password-free sign-in, and is left out instead of breaking the race.
+    people = [
+        Session(args.base, m["email"])
+        for m in members
+        if m["role"] != "viewer" and m["email"].endswith("@newtonite.dev")
+    ]
 
     status, item = lead.call(
         "POST",

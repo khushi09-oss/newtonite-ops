@@ -498,3 +498,25 @@ clipboard for the lead to paste into chat or their own email.
 exists, the email becomes an `invite_email` outbox handler. It would be queued in the same
 transaction as the membership, retried, and sent with a unique key per invite so a retry never
 sends twice. The copy button stays as a fallback.
+
+## D-29 One rule decides which teams a person sees, and every screen reads it
+
+**Situation.** The admin's dashboard and recent activity covered every team, as the permission rules
+allow, but the sidebar listed only the two teams she belonged to. The New item dialog offered only
+Payments, and the items filter and the team page also knew only her memberships. Each screen had
+worked out "which teams" on its own from the user's memberships, so they disagreed with the server
+and with each other. Any future admin, and any team added later, would have hit the same gap.
+
+**Decision.** `visible_teams()` in `app/items.py` is the one rule. It returns every team the caller
+can see (their own, plus every public team for an admin), their role on each ("admin" when they
+see it only as an admin), and whether they may create items there. Creating an item and reading a
+team roster use it, and `/me` returns it, so every screen builds its team lists from it: the
+sidebar, the items filter, the Members button, the New item dialog and button, the team page and
+the dashboard's team count. Labels that said "on teams you lead" now say "where you approve",
+which is true for leads and admins alike.
+
+**Trade-off.** `/me` returns a second list beside the memberships. In return, a picker can never
+offer a team the server would refuse, or hide one it would accept. A test builds new accounts of
+every kind and checks that what `/me` offers is exactly what creating an item does. A browser test
+checks that every list on screen matches `/me` for each role.
+

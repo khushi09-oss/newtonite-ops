@@ -6,7 +6,7 @@ import { ItemRow } from "../ui";
 
 const TABS = [
   ["assigned", "Assigned to me", "Open items you own, most urgent first.", "Nothing is assigned to you right now."],
-  ["approvals", "Needs my approval", "Items on teams you lead, waiting for a lead to sign off.", "No approvals are waiting on you."],
+  ["approvals", "Needs my approval", "Requests from others on teams where you approve: the ones you lead, or every team for an admin.", "No approvals are waiting on you."],
   ["unassigned_urgent", "Urgent, unclaimed", "Urgent and high priority items on your teams that nobody owns yet.", "Every urgent item on your teams has an owner."],
   ["stale", "Gone quiet", "Open items on your teams with no change in three days, quietest first.", "Nothing on your teams has gone quiet."],
 ];

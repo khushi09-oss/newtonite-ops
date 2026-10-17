@@ -10,6 +10,7 @@ const ROLE_HINT = {
   viewer: "Follows the work, cannot change it",
   member: "Creates, claims and works items",
   lead: "Approves work and manages the team",
+  admin: "You see it as an admin, and change who is on it from the Admin page",
 };
 
 // A visitor's own team on the demo. Used by the dashboard's setup and the sidebar.
@@ -132,7 +133,7 @@ export default function Team() {
   const { id } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const team = me.teams.find((t) => t.id === id);
+  const team = me.visible_teams.find((t) => t.id === id);
   const members = useQuery({ queryKey: ["members", id], queryFn: () => api(`/teams/${id}/members`), enabled: Boolean(team) });
   const config = useQuery({ queryKey: ["auth-config"], queryFn: () => api("/auth/config"), staleTime: Infinity });
   const done = { onSettled: () => qc.invalidateQueries({ queryKey: ["members", id] }) };
@@ -162,7 +163,7 @@ export default function Team() {
             {team.key && <span className="item-key">{team.key}</span>}
           </h1>
           <p className="muted">
-            You are its {team.role}. {ROLE_HINT[team.role]}.
+            {team.role === "admin" ? "You are not on this team." : `You are its ${team.role}.`} {ROLE_HINT[team.role]}.
           </p>
         </div>
         <button onClick={() => navigate(`/items?team=${id}`)}>
