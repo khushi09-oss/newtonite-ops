@@ -24,7 +24,10 @@ select n, gen_random_uuid() as id, team_names[n] as name, team_keys[n] as key
                array['PAY', 'CMP', 'SUP', 'INC', 'ONB', 'RSK', 'PLT', 'BIL'] as team_keys) as t;
 
 -- Teams take turns, so each one ends with 20,000 / 8 items and its counter there.
-insert into teams (id, name, key, next_number) select id, name, key, 2500 from seed_teams;
+-- Colours spread across the eight slots in key order, the same rule migration 010 used for teams
+-- that already existed, so a reseed never changes a team's colour.
+insert into teams (id, name, key, next_number, color)
+select id, name, key, 2500, (row_number() over (order by key) - 1) % 8 from seed_teams;
 
 -- User n is lead of team ((n-1) % 8)+1 when n <= 8, otherwise a member of it, and a viewer of a second team.
 -- Each team ends up with 1 lead, 4 members, 5 viewers.

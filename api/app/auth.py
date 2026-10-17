@@ -126,7 +126,7 @@ def me(user: dict = Depends(current_user)):
 
     with db.pool.connection() as conn:
         teams = conn.execute(
-            "select t.id, t.name, t.key, m.role from team_members m join teams t on t.id = m.team_id"
+            "select t.id, t.name, t.key, t.color, m.role from team_members m join teams t on t.id = m.team_id"
             " where m.user_id = %s order by t.name",
             (user["id"],),
         ).fetchall()

@@ -141,6 +141,20 @@ def test_deactivation_ends_sessions_and_releases_work(client, team):
     assert r.status_code == 422
 
 
+def test_a_new_team_takes_the_colour_least_used_among_the_teams_its_creator_sees(client, login):
+    login(ADMIN)
+    used = [t["color"] for t in client.get("/me").json()["visible_teams"]]
+    least = min(range(8), key=lambda c: (used.count(c), c))
+    team = client.post("/admin/teams", json={"name": f"Colour {uuid4().hex[:8]}"}).json()
+    assert team["color"] == least
+    # The colour travels with the team: the team list, /me, and every item on it.
+    assert {t["id"]: t["color"] for t in client.get("/admin/teams").json()["teams"]}[
+        team["id"]
+    ] == least
+    item = new_item(client, team)
+    assert item["team_color"] == least
+
+
 def test_admin_cannot_lock_themselves_out(client, login):
     me = login(ADMIN)
     assert client.patch(f"/admin/users/{me['id']}", json={"is_admin": False}).status_code == 422

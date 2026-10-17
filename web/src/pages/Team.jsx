@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom";
 import { api } from "../api";
 import { Icon } from "../icons";
-import { Avatar, teamSwatch } from "../ui";
+import { Avatar, teamColor } from "../ui";
 
 const ROLES = ["viewer", "member", "lead"];
 const ROLE_HINT = {
@@ -158,7 +158,7 @@ export default function Team() {
       <header className="page-head">
         <div>
           <h1 className="team-title">
-            <span className="team-swatch" style={{ background: teamSwatch(team.name) }} />
+            <span className="team-swatch" style={{ background: teamColor(team.color) }} />
             {team.name}
             {team.key && <span className="item-key">{team.key}</span>}
           </h1>

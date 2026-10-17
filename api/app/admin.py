@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from app import db, demo
 from app.auth import current_user
-from app.items import OPEN, _jsonb, apply_change
+from app.items import OPEN, _jsonb, apply_change, next_team_colour
 
 router = APIRouter(prefix="/admin")
 LIST_CAP = 100
@@ -47,7 +47,8 @@ def require_public(conn, team_id=None, user_id=None) -> None:
 USER_VIEW = (
     "select u.id, u.email, u.name, u.is_admin, u.deactivated_at, exists (select 1 from sessions s where s.user_id = u.id) as signed_in,"
     " (select max(s.created_at) from sessions s where s.user_id = u.id) as last_sign_in,"
-    " coalesce((select json_agg(json_build_object('team_id', t.id, 'team', t.name, 'role', m.role)"
+    " coalesce((select json_agg(json_build_object('team_id', t.id, 'team', t.name, 'color', t.color,"
+    "   'role', m.role)"
     "   order by t.name) from team_members m join teams t on t.id = m.team_id"
     "   where m.user_id = u.id and not t.private), '[]') as teams"
     " from users u"
@@ -175,7 +176,7 @@ def change_user(user_id: UUID, body: UserChange, admin: dict = Depends(require_a
 def list_teams(admin: dict = Depends(require_admin)):
     with db.pool.connection() as conn:
         rows = conn.execute(
-            "select t.id, t.name, t.key, count(m.user_id) as members from teams t"
+            "select t.id, t.name, t.key, t.color, count(m.user_id) as members from teams t"
             " left join team_members m on m.team_id = t.id where not t.private"
             " group by t.id order by t.name"
             " limit %s",
@@ -207,8 +208,8 @@ def create_team(body: NewTeam, admin: dict = Depends(require_admin)):
     with db.pool.connection() as conn, conn.transaction():
         try:
             team = conn.execute(
-                "insert into teams (name, key) values (%s, %s) returning id, name, key",
-                (name, team_key(conn, name)),
+                "insert into teams (name, key, color) values (%s, %s, %s) returning id, name, key, color",
+                (name, team_key(conn, name), next_team_colour(conn, admin)),
             ).fetchone()
         except UniqueViolation as e:
             if e.diag.constraint_name == "teams_key_idx":  # two admins took the same code at once

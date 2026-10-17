@@ -18,7 +18,7 @@ import {
   describeChange,
   describeEvent,
   itemKey,
-  teamSwatch,
+  teamColor,
 } from "../ui";
 
 const NOTE_REQUIRED = { "awaiting_approval>triaged": true };
@@ -136,7 +136,7 @@ export default function Item() {
           <Link to="/items">Items</Link>
           <Icon name="chevron" className="crumb-sep" />
           <Link to={`/items?team=${it.team_id}`} className="crumb-team">
-            <span className="team-swatch" style={{ background: teamSwatch(it.team_name) }} />
+            <span className="team-swatch" style={{ background: teamColor(it.team_color) }} />
             {it.team_name}
           </Link>
           <Icon name="chevron" className="crumb-sep" />
@@ -401,7 +401,7 @@ export default function Item() {
               </dd>
               <dt>Team</dt>
               <dd className="crumb-team">
-                <span className="team-swatch" style={{ background: teamSwatch(it.team_name) }} />
+                <span className="team-swatch" style={{ background: teamColor(it.team_color) }} />
                 {it.team_name}
               </dd>
               <dt>Due</dt>

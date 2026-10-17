@@ -5,7 +5,7 @@ import { api } from "../api";
 import { TeamBars, TrendChart } from "../charts";
 import { Icon } from "../icons";
 import { pollEvery, useLiveConnected } from "../live";
-import { Avatar, ItemKey, Time, describeEvent, teamSwatch } from "../ui";
+import { Avatar, ItemKey, Time, describeEvent, teamColor } from "../ui";
 import { AddMemberForm, InviteNote, NewTeamForm } from "./Team";
 
 const FEED_SIZE = 8;
@@ -141,7 +141,7 @@ export default function Dashboard() {
                         <Time iso={e.created_at} />
                       </div>
                       <Link to={`/items/${e.item_id}`} className="feed-item" title={`${e.team} team`}>
-                        <span className="team-swatch" style={{ background: teamSwatch(e.team) }} />
+                        <span className="team-swatch" style={{ background: teamColor(e.team_color) }} />
                         <ItemKey teamKey={e.team_key} number={e.number} />
                         <span className="feed-title">{e.title}</span>
                       </Link>

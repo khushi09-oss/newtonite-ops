@@ -243,14 +243,11 @@ export function DemoBanner({ workspace }) {
   );
 }
 
-// A fixed swatch per team, from the chart palette's categorical order, so a team keeps its colour.
+// Each team stores its palette slot (0 to 7), picked when it was created as the one least used among
+// the teams its creator can see. The colours are the chart palette's validated categorical order.
 const TEAM_SWATCHES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"];
-// ponytail: the eight standing teams get one colour each; any other team hashes and may share one.
-// A colour column picked when a team is created is the upgrade.
-const SEEDED = { Payments: 0, Platform: 1, Risk: 2, Onboarding: 3, Support: 4, Billing: 5, Compliance: 6, Incidents: 7 };
-export function teamSwatch(name) {
-  const h = SEEDED[name] ?? [...(name || "")].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 3);
-  return TEAM_SWATCHES[h % TEAM_SWATCHES.length];
+export function teamColor(slot) {
+  return TEAM_SWATCHES[(slot ?? 0) % TEAM_SWATCHES.length];
 }
 
 const OPEN_STATUSES = ["new", "triaged", "in_progress", "awaiting_approval", "approved"];
@@ -287,7 +284,7 @@ export function ItemRow({ item, showStatus = true }) {
       <span className="irow-title">{item.title}</span>
       <DueTag item={item} />
       <span className="irow-team">
-        <span className="team-swatch" style={{ background: teamSwatch(item.team_name) }} />
+        <span className="team-swatch" style={{ background: teamColor(item.team_color) }} />
         {item.team_name}
       </span>
       <span title={item.assignee_name || "Unassigned"} className="irow-who">

@@ -28,7 +28,10 @@ COLS = (
     " w.approval_requested_by, w.due_at, w.version, w.created_at, w.updated_at, w.last_activity_at,"
     " w.number"
 )
-NAMES = " t.name as team_name, t.key as team_key, r.name as reporter_name, a.name as assignee_name"
+NAMES = (
+    " t.name as team_name, t.key as team_key, t.color as team_color,"
+    " r.name as reporter_name, a.name as assignee_name"
+)
 # Admins skip the membership check, except on private teams: on the public demo the admin account
 # is shared, and a visitor's own workspace must stay theirs. See migration 008.
 ADMIN_SEES = "(%(admin)s and not t.private)"
@@ -177,13 +180,23 @@ def visible_teams(conn, user: dict, team_id=None) -> list[dict]:
     team list the screens show, so a picker can never offer a team the server would refuse."""
     cond = " and t.id = %(team)s" if team_id is not None else ""
     return conn.execute(
-        "select t.id, t.name, t.key, coalesce(m.role, 'admin') as role,"
+        "select t.id, t.name, t.key, t.color, coalesce(m.role, 'admin') as role,"
         " (%(admin)s or coalesce(m.role in ('member', 'lead'), false)) as can_create"
         " from teams t left join team_members m on m.team_id = t.id and m.user_id = %(me)s"
         f" where (m.user_id is not null or {ADMIN_SEES}){cond}"
         " order by m.user_id is null, t.name",
         {"admin": user["is_admin"], "me": user["id"], "team": team_id},
     ).fetchall()
+
+
+TEAM_COLOURS = 8  # palette slots; the screens hold the eight colours (ui.jsx TEAM_SWATCHES)
+
+
+def next_team_colour(conn, user: dict) -> int:
+    """The palette slot least used among the teams `user` can see, lowest first on a tie. A new team
+    takes it, so up to eight teams always look different in anyone's sidebar and lists."""
+    used = [t["color"] for t in visible_teams(conn, user)]
+    return min(range(TEAM_COLOURS), key=lambda c: (used.count(c), c))
 
 
 def load_item(conn, item_id) -> dict | None:

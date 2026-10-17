@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BrowserRouter, Link, Navigate, NavLink, Outlet, Route, Routes, useLocation, useMatch, useNavigate } from "react-router-dom";
 import { api } from "./api";
-import { Avatar, BrandMark, DemoBanner, teamSwatch } from "./ui";
+import { Avatar, BrandMark, DemoBanner, teamColor } from "./ui";
 import { Icon } from "./icons";
 import { LiveUpdates, pollEvery, useLiveConnected } from "./live";
 import Login from "./pages/Login";
@@ -115,7 +115,7 @@ function ShellBody({ me, demo, qc, navigate }) {
           )}
           {me.teams.map((t) => (
             <Link key={t.id} to={`/items?team=${t.id}`} className="team-link">
-              <span className="team-swatch" style={{ background: teamSwatch(t.name) }} />
+              <span className="team-swatch" style={{ background: teamColor(t.color) }} />
               {t.name}
               <span className="role">{t.role}</span>
             </Link>
@@ -124,7 +124,7 @@ function ShellBody({ me, demo, qc, navigate }) {
           {otherTeams.length > 0 && <div className="rail-section">Other teams</div>}
           {otherTeams.map((t) => (
             <Link key={t.id} to={`/items?team=${t.id}`} className="team-link">
-              <span className="team-swatch" style={{ background: teamSwatch(t.name) }} />
+              <span className="team-swatch" style={{ background: teamColor(t.color) }} />
               {t.name}
               <span className="role">admin</span>
             </Link>
