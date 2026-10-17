@@ -8,7 +8,9 @@ for (const label of PEOPLE) {
   test(`${label} can open every screen without changing anything`, async ({ page }) => {
     const writes = [];
     page.on("request", (r) => {
+      // Only this app's own API counts; Google's sign-in script posts its own logs to Google.
       const path = new URL(r.url()).pathname;
+      if (!path.startsWith("/api/") || new URL(r.url()).origin !== new URL(page.url()).origin) return;
       if (r.method() !== "GET" && path !== "/api/auth/dev-login") writes.push(`${r.method()} ${path}`);
     });
 
