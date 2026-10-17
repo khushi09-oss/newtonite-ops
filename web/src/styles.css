@@ -1010,12 +1010,6 @@ a.tile:hover {
   display: grid;
   gap: 12px;
 }
-.dev-signin label {
-  display: grid;
-  gap: 4px;
-  font-size: 13px;
-  color: var(--muted);
-}
 .quick {
   display: grid;
   grid-template-columns: 1fr 1fr;
