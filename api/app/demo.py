@@ -1,6 +1,6 @@
 """Demo mode: a public site with shared, fake data. Off unless DEMO_MODE=true.
 
-- Any verified Google account gets in without an invite, onto the teams in DEMO_TEAMS.
+- Any verified Google account gets in without an invite, to an empty workspace of its own.
 - The seeded demo accounts cannot be changed by admins, so one visitor cannot break them for all.
 - A nightly call wipes everything and reseeds, behind CRON_SECRET."""
 
@@ -13,9 +13,6 @@ from app import auth, db
 
 DEMO_MODE = auth.flag("DEMO_MODE")
 SEEDED_DOMAIN = "@newtonite.dev"
-# Where a visitor who signs in with Google lands: a team to work in and one to watch.
-# Not Risk as a member: the claim race and the demo script race exactly Risk's members.
-DEMO_TEAMS = [("Support", "member"), ("Risk", "viewer")]
 DATA_TABLES = (
     "notifications, watchers, outbox, idempotency_keys, rate_limits, sessions, admin_events,"
     " work_item_events, work_items, team_members, teams, users"
@@ -41,19 +38,13 @@ def guard(conn, user_id) -> None:
 
 
 def add_visitor(conn, email: str, name: str, sub: str) -> dict:
-    """Create a Google visitor and put them on the demo teams. Called only in demo mode."""
-    user = conn.execute(
+    """Create a Google visitor with no teams: they start their own workspace (app/teams.py). The demo
+    people explore the shared data. Called only in demo mode."""
+    return conn.execute(
         "insert into users (email, name, google_sub, private) values (%s, %s, %s, true)"
         " returning id, email, name, is_admin, google_sub, deactivated_at",
         (email, name, sub),
     ).fetchone()
-    for team, role in DEMO_TEAMS:
-        conn.execute(
-            "insert into team_members (team_id, user_id, role)"
-            " select id, %s, %s from teams where name = %s",
-            (user["id"], role, team),
-        )
-    return user
 
 
 def reset(target: ConnectionPool | None = None) -> None:

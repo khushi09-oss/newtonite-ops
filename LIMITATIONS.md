@@ -36,7 +36,11 @@ Kept current with every PR. Each line says what is missing and why it was left o
 - No attachments, no bulk edits, no soft delete.
 - Invitations are not emailed. The admin creates the person and tells them to sign in with
   Google; there is no email delivery in the system.
-- Only admins manage people and teams. A team lead cannot invite someone to their own team.
+- Off the demo, admins decide who can get in. A team lead can add people to their own team, but
+  only people who already have an account; anyone new needs an admin to invite them first.
+- On the demo, a visitor's own workspace is a set of teams they lead. There is no named
+  organisation above them and no admin of their own, and the workspace is cleared at the nightly
+  reset like everything else.
 - The dashboard counts are computed on every request rather than kept as running totals. Each
   is an index scan, so they stay quick at this size; at millions of items they would move to
   counters updated in `apply_change()`.

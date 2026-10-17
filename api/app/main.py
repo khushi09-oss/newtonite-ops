@@ -21,6 +21,7 @@ from app import (
     notifications,
     outbox,
     stream,
+    teams,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -89,6 +90,7 @@ app.include_router(admin.router)
 app.include_router(demo.router)
 app.include_router(stream.router)
 app.include_router(dashboard.router)
+app.include_router(teams.router)
 
 
 @app.exception_handler(items.Conflict)

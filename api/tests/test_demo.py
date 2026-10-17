@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import psycopg
 import pytest
+from fastapi.testclient import TestClient
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 from test_admin import as_user
@@ -24,7 +25,7 @@ def demo_on(monkeypatch):
         conn.execute("delete from rate_limits where key like 'signin:%%'")
 
 
-def test_demo_google_visitor_gets_in_without_invite(client, demo_on):
+def test_demo_google_visitor_gets_in_to_an_empty_workspace_of_their_own(client, demo_on):
     email = f"visitor-{uuid4().hex[:8]}@gmail.com"
     client.cookies.clear()
     r = client.post(
@@ -37,11 +38,94 @@ def test_demo_google_visitor_gets_in_without_invite(client, demo_on):
     # A real person's account: hidden from the shared admin, and closed to password-free sign-in.
     client.cookies.clear()
     assert client.post("/auth/dev-login", json={"email": email}).status_code == 404
-    assert sorted((t["name"], t["role"]) for t in me["teams"]) == [
-        ("Risk", "viewer"),
-        ("Support", "member"),
-    ]
+    assert me["teams"] == [] and me["private"] is True  # none of the shared demo teams
     assert client.get("/auth/config").json()["demo"] is True
+
+
+def visitor() -> tuple[TestClient, str]:
+    """A Google visitor as the demo makes one, signed in on a client of their own."""
+    with db.pool.connection() as conn:
+        uid = conn.execute(
+            "insert into users (email, name, private) values (%s, 'Visitor', true) returning id",
+            (f"visitor-{uuid4().hex[:8]}@gmail.com",),
+        ).fetchone()["id"]
+    return as_user(uid), str(uid)
+
+
+def new_item(c, team_id):
+    r = c.post(
+        "/items",
+        json={"team_id": team_id, "kind": "task", "title": "Workspace item"},
+        headers={"Idempotency-Key": str(uuid4())},
+    )
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+def test_a_workspace_is_seen_only_by_its_lead_and_the_people_they_add(client, login, demo_on):
+    lead, _ = visitor()
+    other, _ = visitor()
+    team = lead.post("/teams", json={"name": "Marketing"}).json()
+    assert team["role"] == "lead" and team["key"].startswith("MAR")
+    # Another visitor's team of the same name is theirs, not a clash that reveals the first one.
+    assert other.post("/teams", json={"name": "Marketing"}).status_code == 201
+
+    email = f"teammate-{uuid4().hex[:8]}@example.com"
+    r = lead.put(f"/teams/{team['id']}/members", json={"email": email, "name": "Teammate"})
+    assert r.status_code == 200, r.text
+    mate = as_user(r.json()["user_id"])
+    assert [t["role"] for t in mate.get("/me").json()["teams"]] == ["member"]
+    item = new_item(mate, team["id"])
+    assert lead.get(f"/items/{item['id']}").status_code == 200
+
+    assert other.get(f"/items/{item['id']}").status_code == 404
+    assert other.put(f"/teams/{team['id']}/members", json={"email": email}).status_code == 404
+    login(ADMIN)
+    assert client.get(f"/items/{item['id']}").status_code == 404
+    assert client.get("/admin/users", params={"q": email}).json()["users"] == []
+
+
+def test_workspace_rules_keep_the_shared_demo_accounts_out(client, login, demo_on):
+    login("dev.mehta@newtonite.dev")
+    assert client.post("/teams", json={"name": "Shared"}).status_code == 403
+    lead, lead_id = visitor()
+    team = lead.post("/teams", json={"name": f"Ops {uuid4().hex[:6]}"}).json()["id"]
+    add = lambda c, email, role="member": c.put(
+        f"/teams/{team}/members", json={"email": email, "role": role}
+    )
+    assert add(lead, "dev.mehta@newtonite.dev").status_code == 403
+    with db.pool.connection() as conn:
+        lead_email = conn.execute("select email from users where id = %s", (lead_id,)).fetchone()
+    assert add(lead, lead_email["email"], "viewer").status_code == 422  # no demoting yourself
+
+    email = f"mate-{uuid4().hex[:8]}@example.com"
+    mate = as_user(add(lead, email).json()["user_id"])
+    assert add(mate, f"x-{uuid4().hex[:8]}@example.com").status_code == 403  # members cannot add
+    item = new_item(mate, team)
+    assert mate.post(f"/items/{item['id']}/claim", json={"version": 1}).status_code == 200
+    mate_id = mate.get("/me").json()["id"]
+    r = lead.delete(f"/teams/{team}/members/{mate_id}")
+    assert r.status_code == 200 and r.json()["released"] == 1
+    assert lead.get(f"/items/{item['id']}").json()["assignee_id"] is None
+
+    # The demo's own teams belong to the shared accounts, even for their lead.
+    login("finn.okafor@newtonite.dev")
+    risk = next(t for t in client.get("/me").json()["teams"] if t["name"] == "Risk")
+    assert client.put(f"/teams/{risk['id']}/members", json={"email": email}).status_code == 403
+
+
+def test_off_the_demo_a_lead_adds_only_people_who_already_have_an_account(client, login):
+    login(ADMIN)
+    team = client.post("/admin/teams", json={"name": f"Lead adds {uuid4().hex[:8]}"}).json()
+    finn = login("finn.okafor@newtonite.dev")
+    login(ADMIN)
+    client.put(f"/admin/teams/{team['id']}/members/{finn['id']}", json={"role": "lead"})
+    login("finn.okafor@newtonite.dev")
+    url = f"/teams/{team['id']}/members"
+    assert client.put(url, json={"email": "hugo.moreau@newtonite.dev"}).status_code == 200
+    stranger = f"stranger-{uuid4().hex[:8]}@example.com"
+    assert client.put(url, json={"email": stranger}).status_code == 404
+    assert client.post("/teams", json={"name": "Not here"}).status_code == 404
 
 
 def test_demo_accounts_cannot_be_changed(client, login, demo_on):

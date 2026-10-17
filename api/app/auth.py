@@ -26,7 +26,7 @@ WRITE_WINDOW_SECONDS = 60
 signer = URLSafeTimedSerializer(os.environ["SESSION_SECRET"], salt="session")
 
 router = APIRouter()
-USER_COLS = "u.id, u.email, u.name, u.is_admin"
+USER_COLS = "u.id, u.email, u.name, u.is_admin, u.private"
 
 
 def issue_session(conn, user_id) -> str:
