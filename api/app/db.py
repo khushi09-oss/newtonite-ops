@@ -5,21 +5,46 @@ import os
 import threading
 from pathlib import Path
 
+import psycopg
 from psycopg.rows import dict_row
-from psycopg_pool import ConnectionPool
+from psycopg_pool import ConnectionPool, PoolTimeout
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://ops:ops@localhost:5432/ops")
 MIGRATIONS = Path(__file__).resolve().parent.parent / "migrations"
 SEED = Path(__file__).resolve().parent.parent / "seed.sql"
 MIGRATION_LOCK = 7_461_001  # any constant; only this app takes it
 
+
+class LivePool(ConnectionPool):
+    """A pool that never hands out a connection the database has dropped.
+
+    Neon closes idle connections and suspends an idle database, which drops every connection at once.
+    Without this, the first request after a quiet spell got a dead connection and answered 500. The
+    library's own `check=` option does test connections, but it waits longer after each dead one it
+    finds (1 s, 2 s, 4 s and on), so a pool full of dead connections took seconds or timed out. Here a
+    dead one is dropped and the next taken at once, until a live or brand-new connection comes."""
+
+    def getconn(self, timeout: float | None = None):
+        for _ in range(self.max_size + 1):
+            conn = super().getconn(timeout)
+            try:
+                self.check_connection(conn)
+            except psycopg.OperationalError:
+                self.putconn(conn)  # broken, so the pool discards it and opens a fresh one
+                continue
+            return conn
+        raise PoolTimeout("the database kept dropping new connections")
+
+
 # prepare_threshold=None: no server-side prepared statements, which a transaction-mode pooler such as
 # Neon's can route to the wrong server connection. The cost is negligible at this query volume.
-pool = ConnectionPool(
+# max_idle: idle connections are retired after a minute, before the database closes them itself.
+pool = LivePool(
     DATABASE_URL,
     min_size=1,
     max_size=int(os.environ.get("DB_POOL_MAX", "20")),
     open=False,
+    max_idle=60,
     kwargs={"row_factory": dict_row, "prepare_threshold": None},
 )
 log = logging.getLogger("db")
