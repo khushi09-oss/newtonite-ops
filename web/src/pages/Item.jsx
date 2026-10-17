@@ -478,19 +478,31 @@ function EditForm({ it, canPriority, onSave, onCancel, busy }) {
         else onCancel();
       }}
     >
-      <input aria-label="Title" value={form.title} onChange={set("title")} required maxLength={200} />
-      <textarea aria-label="Description" value={form.description} onChange={set("description")} rows={4} />
+      <label className="field">
+        Title
+        <input value={form.title} onChange={set("title")} required maxLength={200} />
+      </label>
+      <label className="field">
+        Description
+        <textarea value={form.description} onChange={set("description")} rows={4} />
+      </label>
       <div className="new-item-row">
         {canPriority && (
-          <select aria-label="Priority" value={form.priority} onChange={set("priority")}>
-            {PRIORITY_LABEL.map((l, i) => (
-              <option key={i} value={i}>
-                {l}
-              </option>
-            ))}
-          </select>
+          <label className="field">
+            Priority
+            <select value={form.priority} onChange={set("priority")}>
+              {PRIORITY_LABEL.map((l, i) => (
+                <option key={i} value={i}>
+                  {l}
+                </option>
+              ))}
+            </select>
+          </label>
         )}
-        <input aria-label="Due date" type="date" value={form.due_at} onChange={set("due_at")} />
+        <label className="field">
+          Due date
+          <input type="date" value={form.due_at} onChange={set("due_at")} />
+        </label>
         <span className="grow" />
         <button type="button" onClick={onCancel}>
           Cancel

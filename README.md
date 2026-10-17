@@ -267,6 +267,7 @@ before testing again.
 | Someone outside a workspace sees into it | `test_a_workspace_is_seen_only_by_its_lead_and_the_people_they_add` |
 | A shared demo account joins or makes a workspace | `test_workspace_rules_keep_the_shared_demo_accounts_out` |
 | A screen breaks for one of the roles on the live site | Browser: `smoke.spec.js`, read-only, every screen as each demo person |
+| Text is drawn over other text, or a page scrolls sideways | Browser: `layout.spec.js`, read-only, every screen and dialog as each demo person, desktop and phone |
 
 ## How it is built
 

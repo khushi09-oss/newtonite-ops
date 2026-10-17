@@ -249,6 +249,18 @@ button.ghost:hover:not(:disabled) {
   padding: 0 7px;
   line-height: 18px;
 }
+.rail-nav {
+  display: contents;
+}
+.field {
+  display: grid;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.new-item-row:has(.field) {
+  align-items: flex-end;
+}
 .rail-section {
   margin: 18px 8px 6px;
   font-size: 12px;
@@ -1841,7 +1853,7 @@ a.button:hover {
 
 @media (max-width: 900px) {
   .shell {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .rail {
     position: static;
@@ -1859,6 +1871,28 @@ a.button:hover {
   .rail-section,
   .team-link {
     display: none;
+  }
+  /* Brand and account on the first row; the links in one row below that scrolls sideways. */
+  .rail-foot {
+    order: 1;
+  }
+  .rail-nav {
+    order: 2;
+    flex-basis: 100%;
+    min-width: 0;
+    display: flex;
+    gap: 2px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin: 0 -4px;
+  }
+  .rail-nav .nav-link {
+    white-space: nowrap;
+    flex: none;
+  }
+  .team-list {
+    max-height: 320px;
+    overflow-y: auto;
   }
   .rail-foot {
     margin: 0 0 0 auto;

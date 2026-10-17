@@ -1,6 +1,6 @@
 // Two small charts for the dashboard, in plain SVG. Palettes come from the validated set: an ordinal
 // blue ramp for workflow order (light = earliest), and categorical slots 1 and 2 for the trend.
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { STATUS_LABEL } from "./ui";
 
 export const OPEN_ORDER = ["new", "triaged", "in_progress", "awaiting_approval", "approved"];
@@ -108,7 +108,15 @@ const day = (iso) => new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, {
 export function TrendChart({ trend }) {
   const [hover, setHover] = useState(null);
   const [table, setTable] = useState(false);
-  const W = 640;
+  // Drawn at the width it is shown at, so its text stays 11px on a phone instead of shrinking.
+  const wrap = useRef(null);
+  const [W, setW] = useState(640);
+  useEffect(() => {
+    if (!wrap.current) return;
+    const ro = new ResizeObserver(([e]) => setW(Math.max(280, Math.round(e.contentRect.width))));
+    ro.observe(wrap.current);
+    return () => ro.disconnect();
+  }, [table]);
   const H = 210;
   const m = { l: 34, r: 74, t: 10, b: 24 };
   const iw = W - m.l - m.r;
@@ -119,6 +127,19 @@ export function TrendChart({ trend }) {
   const path = (key) => trend.map((d, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(d[key]).toFixed(1)}`).join("");
   const last = trend.length - 1;
   const ticks = [0, top / 2, top];
+  // A date label needs about 48px; a narrow chart labels fewer days, always including today.
+  const step = Math.max(3, Math.ceil(trend.length / Math.max(1, Math.floor(iw / 48))));
+  // The end labels sit at each line's last value. When the values are close (both 0, say) they
+  // would print over each other, so keep them a line apart, higher value on top, inside the plot.
+  const GAP = 14;
+  const ends = { created: y(trend[last].created), resolved: y(trend[last].resolved) };
+  if (Math.abs(ends.created - ends.resolved) < GAP) {
+    const [upper, lower] = trend[last].created >= trend[last].resolved ? ["created", "resolved"] : ["resolved", "created"];
+    const mid = (ends.created + ends.resolved) / 2;
+    const shift = Math.min(0, m.t + ih - (mid + GAP / 2)) + Math.max(0, m.t - (mid - GAP / 2));
+    ends[upper] = mid - GAP / 2 + shift;
+    ends[lower] = mid + GAP / 2 + shift;
+  }
 
   if (table) {
     return (
@@ -149,7 +170,7 @@ export function TrendChart({ trend }) {
   return (
     <div>
       <Legend onToggle={() => setTable(true)} />
-      <div className="chart-wrap">
+      <div className="chart-wrap" ref={wrap}>
         <svg
           className="chart-svg"
           viewBox={`0 0 ${W} ${H}`}
@@ -172,7 +193,7 @@ export function TrendChart({ trend }) {
             </g>
           ))}
           {trend.map((d, i) =>
-            i % 3 === last % 3 ? (
+            i % step === last % step ? (
               <text key={d.day} x={x(i)} y={H - 6} textAnchor="middle">
                 {day(d.day)}
               </text>
@@ -183,7 +204,7 @@ export function TrendChart({ trend }) {
             <g key={k}>
               <path d={path(k)} fill="none" stroke={SERIES[k]} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
               <circle cx={x(hover ?? last)} cy={y(trend[hover ?? last][k])} r="4" fill={SERIES[k]} stroke="#fff" strokeWidth="2" />
-              <text x={W - m.r + 10} y={y(trend[last][k]) + 4} style={{ fill: "#454b56" }}>
+              <text x={W - m.r + 10} y={ends[k] + 4} style={{ fill: "#454b56" }}>
                 {k === "created" ? "Created" : "Resolved"} {trend[last][k]}
               </text>
             </g>

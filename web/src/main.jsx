@@ -76,25 +76,28 @@ function ShellBody({ me, demo, qc, navigate }) {
             <Icon name="plus" /> New item
           </button>
         )}
-        <NavLink to="/" end className="nav-link">
-          <Icon name="dashboard" /> Dashboard
-        </NavLink>
-        <NavLink to="/inbox" className="nav-link">
-          <Icon name="inbox" /> Inbox
-          {inboxCount > 0 && <span className="nav-count">{inboxCount}</span>}
-        </NavLink>
-        <NavLink to="/items" end className="nav-link">
-          <Icon name="list" /> All items
-        </NavLink>
-        <NavLink to="/notifications" className="nav-link">
-          <Icon name="bell" /> Notifications
-          {unreadCount > 0 && <span className="nav-count hot">{unread.data.capped ? "50+" : unreadCount}</span>}
-        </NavLink>
-        {me.is_admin && (
-          <NavLink to="/admin" className="nav-link">
-            <Icon name="shield" /> Admin
+        {/* One group, so on a phone the links share a single row that scrolls sideways. */}
+        <div className="rail-nav">
+          <NavLink to="/" end className="nav-link">
+            <Icon name="dashboard" /> Dashboard
           </NavLink>
-        )}
+          <NavLink to="/inbox" className="nav-link">
+            <Icon name="inbox" /> Inbox
+            {inboxCount > 0 && <span className="nav-count">{inboxCount}</span>}
+          </NavLink>
+          <NavLink to="/items" end className="nav-link">
+            <Icon name="list" /> All items
+          </NavLink>
+          <NavLink to="/notifications" className="nav-link">
+            <Icon name="bell" /> Notifications
+            {unreadCount > 0 && <span className="nav-count hot">{unread.data.capped ? "50+" : unreadCount}</span>}
+          </NavLink>
+          {me.is_admin && (
+            <NavLink to="/admin" className="nav-link">
+              <Icon name="shield" /> Admin
+            </NavLink>
+          )}
+        </div>
         {(me.teams.length > 0 || me.private) && (
           <div className="rail-section">
             Your teams
