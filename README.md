@@ -35,6 +35,114 @@ Everything is cleared every night at 04:00 Singapore time.
 The demo runs with `DEMO_MODE=true`. Without it, the same code is invite-only: Google sign-in
 admits only people an admin has invited, and there is no passwordless sign-in.
 
+## Every feature, and why it works this way
+
+Each part of the app in plain words: what it does, and why it was built that way. The `D-NN`
+numbers point to the full reasoning in [ENGINEERING_DECISIONS.md](ENGINEERING_DECISIONS.md).
+
+### Getting in
+
+- **Two ways in on the demo.** "Explore the demo" signs you in as one of four demo people with
+  one click. "Start your own workspace" signs you in with Google to an empty, private workspace.
+  *Why:* a reviewer should see every role in a minute without making accounts, and should also
+  be able to try the product the way a real team starts, from nothing (D-19, D-27).
+- **Google sign-in.** The API checks Google's token itself (signature, audience, expiry, a
+  verified email), then looks the person up. Off the demo, only invited emails get in. The first
+  sign-in ties the email to that Google account, so a reassigned address cannot take it over.
+  *Why:* no passwords to store or reset, and Google has already proved the address (D-16).
+- **Sessions are rows in the database,** referenced by a signed cookie that lasts seven days.
+  *Why:* signing out, or deactivating someone, ends their sessions at once. A stateless cookie
+  would stay valid until it expired (D-15).
+- **Privacy on the demo.** A visitor's own account and workspace are marked private. The shared
+  demo admin cannot see them, and the password-free demo sign-in cannot reach them.
+  *Why:* the demo's admin account is public. Without this, any visitor could read other visitors'
+  email addresses or sign in as them (D-26). The public `/privacy` page says what is kept.
+
+### Seeing what needs you
+
+- **Dashboard.** It shows five counts: assigned to you, waiting for your approval, urgent and
+  unclaimed, overdue, and quiet for three days. Below them are open work by team, created against
+  resolved over 14 days, and recent activity. Each count links to the list behind it.
+  *Why:* the first screen should answer "what needs me?", not show a list of everything. Each
+  number is one indexed query scoped to your teams (D-22).
+- **Inbox.** The same questions as tabs, each with its count, holding the items themselves.
+  It opens on the first tab with work in it.
+  *Why:* four small indexed queries are fast at any size, where one query over everything is not
+  (D-13).
+- **Notifications.** They are grouped by day, with the item's key on each. "Mark all as read"
+  clears only what was on your screen.
+  *Why:* a notification that arrives while you read should not be cleared unseen (D-25).
+
+### Working on items
+
+- **Item keys.** Every item has a short key from its team, like `RSK-1204`, counted per team with
+  no gaps. You can search by key.
+  *Why:* people quote keys in chat. A per-team counter on the team row keeps them in order even
+  under concurrent creates (D-23).
+- **Items list.** Items are grouped by workflow status, each group with its exact count, and
+  finished work starts folded. You can filter by team, priority, your own work and overdue, and
+  search in full text.
+  *Why:* the grouping shows where work stands at a glance. Each group pages on its own cursor,
+  so nothing uses offset paging and nothing slows down as data grows (D-06, D-24).
+- **The workflow.** New, triaged, in progress, awaiting approval, approved, resolved, closed.
+  Only the moves in the transition table are allowed. A lead approves, never their own request.
+  Rejecting needs a note.
+  *Why:* the rules live in one table on the server, so the UI cannot skip a step. A refused move
+  answers 422 with the moves that are allowed (D-05).
+- **Claiming.** Claiming is one guarded database statement. When two people claim at once,
+  exactly one wins and the other is told who did.
+  *Why:* a read-then-write in the app would let both win (D-02).
+- **Conflicts.** Every change carries the version it was based on. If someone changed the item
+  first, your change is rolled back and a strip says who changed what, with Reload and Retry.
+  *Why:* silently overwriting someone's work is the bug this brief is about (D-02, D-10, D-14).
+- **Safe retries.** Every create, move and comment carries an idempotency key. A double click or
+  a network retry returns the first answer instead of doing the work twice.
+  *Why:* operational work is often entered under pressure on bad connections (D-03, D-12).
+- **The item page.** A Next step card says where the item stands and gives one main button for
+  the move that takes it forward. A Details card lists the facts, and the activity feed sets
+  comments apart from status changes.
+  *Why:* the next action should be obvious, and the buttons are drawn from what the server says
+  you may do, never guessed by the page.
+- **History.** Every change writes one history event in the same transaction, and the database
+  refuses to edit or delete history.
+  *Why:* the item's state can always be explained, and nobody can quietly rewrite it (D-01, D-09).
+- **Live updates.** The open item and the notification count update within about two seconds
+  without a reload. If the live stream drops, polling every 15 seconds takes over.
+  *Why:* two people working the same item should see each other's changes (D-20).
+
+### Teams and people
+
+- **Roles per team.** A viewer follows the work, a member does it, and a lead approves and
+  manages the team. Admins manage everyone.
+  *Why:* the same person often works on one team and only watches another.
+- **Team page.** Anyone on a team sees who else is on it. The lead adds people by email,
+  changes roles and removes people. Removing someone releases their open items, and each release
+  is in that item's history.
+  *Why:* leads know their own team best. Off the demo, admins still decide who gets an account
+  at all (D-17, D-27).
+- **Invites are a message you send.** After a lead adds someone, the app shows a ready message
+  with a Copy invite button. Nothing is emailed.
+  *Why:* sending email to anyone needs a domain you own, verified with an email provider. This
+  project has no domain, and a `vercel.app` address cannot be verified. On a public demo,
+  emailing any address a visitor types would also need anti-spam limits first (D-28).
+- **Admin.** Four tabs: people, teams, background jobs and an admin log that cannot be edited.
+  *Why:* every admin action is recorded, and failed jobs are visible and retryable instead of lost
+  (D-17, D-21).
+
+### Behind the scenes
+
+- **Notifications go through an outbox.** The change and its notification job commit together.
+  A worker delivers them, retries with growing waits, and stops after eight failures, keeping the
+  error for an admin.
+  *Why:* a notification is never lost when the change commits, and never sent for a change that
+  did not (D-04, D-11).
+- **On Vercel there is no worker process.** Each API instance drains the outbox after it answers,
+  and a daily job sweeps the rest.
+  *Why:* Vercel runs functions, not long-lived processes (D-18).
+- **The demo resets every night** at 04:00 Singapore time, back to the same seed of 40 people,
+  8 teams and 20,000 items.
+  *Why:* strangers share it, so it must not drift or fill up (D-19).
+
 ## Run it
 
 You need Docker with Compose. Python 3 is optional, for the demo script.
@@ -107,10 +215,12 @@ every other pushed branch gets its own preview deploy. Preview deploys have no `
 so they cannot touch the live database: their pages load but their API does not. Changes are
 tested locally before they merge.
 
-Production settings: `DEV_LOGIN=false`, `SEED_ON_BOOT=false`, `COOKIE_SECURE=true`,
+Settings for a real deployment: `DEV_LOGIN=false`, `SEED_ON_BOOT=false`, `COOKIE_SECURE=true`,
 `DRAIN_OUTBOX_IN_REQUESTS=true`, `DB_POOL_MAX=5`, a random `SESSION_SECRET` and `CRON_SECRET`,
 plus `GOOGLE_CLIENT_ID` and `ADMIN_EMAILS`. The site's own URLs are allowed origins automatically.
-Migrations run on the first request after each deploy.
+Migrations run on the first request after each deploy. The live demo differs on purpose: it
+also sets `DEMO_MODE`, `DEV_LOGIN` and `SEED_ON_BOOT` to `true`, so the role cards work and the
+seed comes back each night.
 
 ## Run the tests
 
@@ -153,6 +263,10 @@ before testing again.
 | Two people claiming in the UI both think they won | Browser: `two people claim the same item and exactly one of them wins` |
 | A change by someone else goes unseen | Browser: `a change by someone else appears on an open page without a reload` |
 | Lists slow down as data grows | `test_list_uses_index`, `test_inbox_queries_use_indexes` (EXPLAIN shows no sequential scan) |
+| The shared demo admin reads a visitor's workspace | `test_the_shared_admin_cannot_see_a_private_workspace_by_any_route` |
+| Someone outside a workspace sees into it | `test_a_workspace_is_seen_only_by_its_lead_and_the_people_they_add` |
+| A shared demo account joins or makes a workspace | `test_workspace_rules_keep_the_shared_demo_accounts_out` |
+| A screen breaks for one of the roles on the live site | Browser: `smoke.spec.js`, read-only, every screen as each demo person |
 
 ## How it is built
 
@@ -206,14 +320,20 @@ The reasoning behind each choice, and what was traded away, is in
 | `api/app/idempotency.py` | `Idempotency-Key` handling: stored responses, replay, mismatch refusal |
 | `api/app/notifications.py` | Watchers, the notification handler, the notification routes |
 | `api/app/inbox.py` | The four inbox buckets |
-| `api/app/auth.py` | Dev login, the signed session cookie, `GET /me` |
+| `api/app/dashboard.py` | The dashboard: counts, open work by team, the 14-day trend, recent activity |
+| `api/app/teams.py` | What a lead does for their team, and a visitor's own workspace on the demo |
+| `api/app/admin.py` | People, teams, background jobs and the admin log, for admins |
+| `api/app/auth.py` | Sessions, the password-free demo sign-in, `GET /me` |
+| `api/app/google.py` | Google sign-in: token checks and the invite rules |
+| `api/app/demo.py` | Demo mode: visitors, protected demo accounts, the nightly reset |
+| `api/app/stream.py` | Live updates as server-sent events |
 | `api/app/outbox.py` | Outbox processing: batches, retries, dead letters, the drain used on Vercel |
 | `api/worker.py` | The worker process: polls the outbox every two seconds |
 | `vercel.json` | The Vercel project: two services, region, the daily sweep |
 | `api/migrations/` | Plain SQL, applied in order on boot |
 | `api/seed.sql` | The demo dataset, generated inside Postgres on first boot |
 | `api/tests/` | Tests named after the risk they guard |
-| `web/` | React, Vite and TanStack Query: sign-in, inbox, items list, item page, notifications |
+| `web/` | React, Vite and TanStack Query: sign-in, dashboard, inbox, items, item page, notifications, team page, admin, privacy |
 | `e2e/` | Browser tests with two people in two real browsers |
 | `scripts/demo_race.py` | The three guarantees, shown against the running stack |
 | `docs/BUILD_PLAN.md` | The plan this was built to, step by step |
@@ -239,13 +359,18 @@ Set in `.env` locally, or as environment variables wherever the API runs.
 
 ### Inviting people
 
-Sign in as an admin and open **Admin** in the sidebar. Enter the person's Google email, their
-name, and a team and role, then choose **Invite**. Tell them to sign in with Google; nothing is
-emailed. From the same page you can create teams, change roles, remove people from a team, and
-deactivate or reactivate anyone. Removing or deactivating someone releases their open items,
-and each release appears in that item's history. Every admin change is listed at the bottom of
-the page and cannot be edited afterwards. The same page lists background jobs that failed eight
-times, with their errors, and retries them.
+**As an admin.** Open **Admin**, then **Invite person**. Enter their Google email, name, and a
+team and role. Tell them to sign in with Google. The Admin page also creates teams, changes
+roles, removes people from teams, deactivates or reactivates anyone, retries failed background
+jobs, and keeps a log of every admin change that cannot be edited.
+
+**As a team lead.** Open your team's items, then **Members**, and add someone by email. You get
+a ready invite message with a **Copy invite** button to send them yourself. Off the demo, a lead
+can only add people who already have an account.
+
+Nothing is emailed in either case. Sending email needs a domain verified with an email provider,
+which this project does not have; see [LIMITATIONS.md](LIMITATIONS.md). Removing or deactivating
+someone releases their open items, and each release appears in that item's history.
 
 ### Setting up Google sign-in
 
@@ -287,10 +412,12 @@ given to a different Google account, sign-in is refused.
 
 ## What comes next
 
-- **Organisations.** Today one deployment is one organisation. Letting anyone create an
-  organisation on a shared site means scoping every team, item and query to it, with tests that
-  try to cross between organisations on every route.
+- **Email.** With a domain of our own: invite emails and notification emails as outbox handlers,
+  with limits per sender and per recipient so the public demo cannot be used to send spam.
+- **Organisations.** A demo workspace is a set of private teams. Real organisations, with a
+  name, their own admins and billing, mean scoping every team, item and query to one, with tests
+  that try to cross between organisations on every route.
 - **Operations.** Alerts when a background job fails for good, and metrics on queue depth and
-  conflict rate. Email delivery would be one more outbox handler.
+  conflict rate.
 - **At larger scale.** Partition the history table by time, give each preview deploy its own
   database copy, and move search to a dedicated engine only if relevance becomes the complaint.
