@@ -31,6 +31,9 @@ function findProblems() {
     for (let a = el; a; a = a.parentElement) {
       const cs = getComputedStyle(a);
       if (cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0") return false;
+      // A closed <details> hides everything but its summary without changing those styles.
+      const fold = a.parentElement;
+      if (fold?.tagName === "DETAILS" && !fold.open && a.tagName !== "SUMMARY") return false;
     }
     return true;
   };

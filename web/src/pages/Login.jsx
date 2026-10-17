@@ -148,7 +148,9 @@ function GoogleButton({ clientId, onCredential, onError }) {
           callback: (response) => handler.current(response.credential),
           ux_mode: "popup",
         });
-        google.accounts.id.renderButton(slot.current, { theme: "outline", size: "large", text: "signin_with", width: 320 });
+        // Google draws a fixed-width button; fit it to its box so a phone never scrolls sideways.
+        const width = Math.max(200, Math.min(320, slot.current.clientWidth));
+        google.accounts.id.renderButton(slot.current, { theme: "outline", size: "large", text: "signin_with", width });
       })
       .catch((e) => onError(e.message));
     return () => {

@@ -1974,6 +1974,12 @@ a.button:hover {
   .add-member {
     grid-template-columns: 1fr;
   }
+  .path {
+    padding: 18px;
+  }
+  .login {
+    padding: 16px;
+  }
   .people-row,
   .job-row {
     grid-template-columns: 1fr;
