@@ -139,11 +139,12 @@ adding it would take. The reasoning behind what *was* built is in
 
 ## Testing
 
-- **The automated browser tests cover the moments that need two people:** a stale edit, a claim
-  race and live updates. The live site gets a read-only smoke run that opens every screen as each
-  demo person. Other screens are checked by hand, and there are no component tests.
+- **The browser tests cover what only a browser shows:** a stale edit, a claim race, live
+  updates, and a layout check of every screen and
+  dialog at desktop and phone width. The layout check catches text drawn over text, sideways
+  scroll and labels too long for their buttons. It cannot judge whether a screen looks good, so
+  that is still checked by eye from its screenshots. There are no component tests.
   Why: the server rules are tested directly against real Postgres, more than a hundred tests.
-  The browser tests guard what only a browser shows.
 - **The workspace flow is not in the automated browser tests.**
   Why: it starts with a real Google sign-in, which a test cannot do. It was driven by hand in a
   real browser, and its rules are covered by API tests.
