@@ -79,7 +79,8 @@ def queries(user: dict, teams: list, lead_of: list) -> dict[str, tuple[str, dict
         "recent": (
             (
                 "select e.id, e.kind, e.before, e.after, e.note, e.created_at, e.actor_id,"
-                " u.name as actor_name, w.id as item_id, w.number, w.title, t.name as team, t.key as team_key"
+                " u.name as actor_name, w.id as item_id, w.number, w.title, t.name as team, t.key as team_key,"
+                " t.color as team_color"
                 " from work_item_events e join work_items w on w.id = e.item_id"
                 " join users u on u.id = e.actor_id join teams t on t.id = w.team_id"
                 " where w.team_id = any(%(teams)s) order by e.created_at desc limit %(recent)s"

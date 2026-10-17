@@ -540,3 +540,22 @@ longer after each dead one (1 s, 2 s, 4 s and on), so a pool full of dead connec
 seconds, or timed out entirely in the test. A test fills the pool, has the database end every
 connection, and requires the next requests to succeed within three seconds.
 
+## D-31 Each team stores its colour, picked when it is created
+
+**Situation.** A team's colour was worked out on each screen from a hash of its name, with a
+hard-coded list giving the eight demo teams one colour each. That was a patch for the demo's teams
+only: any team created later could share a colour with another, and two screens could only agree
+because they ran the same hash.
+
+**Decision.** `teams.color` holds one of eight palette slots (migration 010, `not null`, checked to
+lie between 0 and 7). A new team, from the Admin page or a visitor's workspace, takes the slot least
+used among the teams its creator can see (`next_team_colour`, built on `visible_teams` from D-29),
+lowest first on a tie. The colour travels with the team in every response that names one, and
+every screen draws it from there. Existing teams and the demo seed are spread across the slots in
+key order, so a reseed never changes a colour.
+
+**Trade-off.** One more column, returned with every team. "Least used among what you can see" means
+two people can see the same team in the same colour while their other teams differ, which is fine.
+The column has no default, on purpose: a new way of creating teams that forgets to choose a
+colour fails at once rather than painting every team the same.
+

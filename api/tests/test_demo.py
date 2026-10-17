@@ -85,6 +85,15 @@ def test_a_workspace_is_seen_only_by_its_lead_and_the_people_they_add(client, lo
     assert client.get("/admin/users", params={"q": email}).json()["users"] == []
 
 
+def test_a_new_workspace_gives_its_first_eight_teams_eight_different_colours(demo_on):
+    lead, _ = visitor()
+    colours = [lead.post("/teams", json={"name": f"Team {n}"}).json()["color"] for n in range(9)]
+    assert sorted(colours[:8]) == list(range(8))  # all eight colours before any repeats
+    assert colours[8] == 0  # then the least used again, lowest first
+    seen = {t["name"]: t["color"] for t in lead.get("/me").json()["visible_teams"]}
+    assert [seen[f"Team {n}"] for n in range(9)] == colours  # and every screen gets the same one
+
+
 def test_workspace_rules_keep_the_shared_demo_accounts_out(client, login, demo_on):
     login("dev.mehta@newtonite.dev")
     assert client.post("/teams", json={"name": "Shared"}).status_code == 403
@@ -173,7 +182,7 @@ def private_workspace():
             (f"owner-{tag}@gmail.com",),
         ).fetchone()["id"]
         team = conn.execute(
-            "insert into teams (name, key, private) values (%s, %s, true) returning id, name",
+            "insert into teams (name, key, private, color) values (%s, %s, true, 0) returning id, name",
             (f"Private {tag}", f"PV{tag.upper()}"),
         ).fetchone()
         conn.execute(
@@ -272,11 +281,19 @@ def test_demo_reset_restores_a_clean_seed(client):
                 counts = conn.execute(
                     "select (select count(*) from users) as users, (select count(*) from teams) as teams,"
                     " (select count(*) from work_items) as items,"
+                    " (select count(distinct color) from teams) as colours,"
                     " (select count(*) from users where email = 'junk@example.com') as junk,"
                     " (select count(*) from work_items w where version <>"
                     "   (select count(*) from work_item_events e where e.item_id = w.id)) as broken"
                 ).fetchone()
-        assert counts == {"users": 40, "teams": 8, "items": 20000, "junk": 0, "broken": 0}
+        assert counts == {
+            "users": 40,
+            "teams": 8,
+            "items": 20000,
+            "colours": 8,
+            "junk": 0,
+            "broken": 0,
+        }
     finally:
         admin.execute(f"drop database if exists {name} with (force)")
         admin.close()

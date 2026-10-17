@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, useOutletContext, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { Icon } from "../icons";
-import { Avatar, Time, teamSwatch } from "../ui";
+import { Avatar, Time, teamColor } from "../ui";
 
 const ROLES = ["viewer", "member", "lead"];
 
@@ -104,7 +104,7 @@ function People({ me }) {
               {u.teams.length === 0 && <span className="muted small">No teams</span>}
               {u.teams.map((t) => (
                 <span key={t.team_id} className="team-chip">
-                  <span className="team-swatch" style={{ background: teamSwatch(t.team) }} />
+                  <span className="team-swatch" style={{ background: teamColor(t.color) }} />
                   {t.team}
                   <span className="role">{t.role}</span>
                 </span>
@@ -255,7 +255,7 @@ function Teams() {
         <div className="team-list">
           {list.map((t) => (
             <button key={t.id} className={`team-pick ${t.id === team?.id ? "on" : ""}`} aria-pressed={t.id === team?.id} onClick={() => setSelected(t.id)}>
-              <span className="team-swatch" style={{ background: teamSwatch(t.name) }} />
+              <span className="team-swatch" style={{ background: teamColor(t.color) }} />
               <span className="grow">{t.name}</span>
               <span className="item-key">{t.key}</span>
               <span className="count-inline">{t.members}</span>
@@ -288,7 +288,7 @@ function Roster({ team }) {
     <section className="card roster">
       <div className="card-head">
         <h2>
-          <span className="team-swatch" style={{ background: teamSwatch(team.name) }} /> {team.name}
+          <span className="team-swatch" style={{ background: teamColor(team.color) }} /> {team.name}
           <span className="item-key">{team.key}</span>
         </h2>
         <p className="muted small">

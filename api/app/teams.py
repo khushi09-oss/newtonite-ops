@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 from app import db, demo
 from app.admin import record, release_open_items, team_key
 from app.auth import current_user
+from app.items import next_team_colour
 
 router = APIRouter()
 
@@ -36,9 +37,9 @@ def create_team(body: NewTeam, user: dict = Depends(current_user)):
     with db.pool.connection() as conn, conn.transaction():
         try:
             team = conn.execute(
-                "insert into teams (name, key, private) values (%s, %s, true)"
-                " returning id, name, key",
-                (name, team_key(conn, name)),
+                "insert into teams (name, key, private, color) values (%s, %s, true, %s)"
+                " returning id, name, key, color",
+                (name, team_key(conn, name), next_team_colour(conn, user)),
             ).fetchone()
         except UniqueViolation:  # two teams took the same code at once
             raise HTTPException(409, "Another team was just created with the same code. Try again.")

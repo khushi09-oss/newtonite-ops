@@ -112,10 +112,10 @@ adding it would take. The reasoning behind what *was* built is in
 - **A team's code cannot be edited** after the team is created.
   Why: every item key on the team is built from it, and links and messages quote those keys.
   Renaming would need the old code to keep working as an alias.
-- **Only the eight standing teams have a colour each.** A team created later takes a colour from
-  a hash of its name and may share one.
-  Why: eight colours cannot be spread over unknown names without a stored choice. A colour column
-  chosen when the team is created is the upgrade.
+- **Team colours repeat after eight teams.** Each team stores one of eight colours, picked when it
+  is created as the one least used among the teams its creator can see, so anyone's first eight
+  teams all look different. A ninth shares a colour, and nobody can pick a colour by hand yet.
+  Why: eight is as many categorical colours as stay apart for colour-blind readers (D-31).
 - **Search is Postgres full-text with English stemming.** There is no fuzzy matching and no
   relevance tuning.
   Why: it needs no extra service and is indexed (D-06). A dedicated engine is worth it only if
