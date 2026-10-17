@@ -86,12 +86,14 @@ class Login(BaseModel):
 
 @router.post("/auth/dev-login")
 def dev_login(body: Login, response: Response):
-    """Sign in as any seeded user with no password. Local development and tests only."""
+    """Sign in as a seeded user with no password: local development, tests and the demo's role cards.
+    Never as a private account, which belongs to a real person who signed in with Google."""
     if not DEV_LOGIN:
         raise HTTPException(404, "Not Found")
     with db.pool.connection() as conn:
         user = conn.execute(
-            f"select {USER_COLS} from users u where u.email = %s and u.deactivated_at is null",
+            f"select {USER_COLS} from users u"
+            " where u.email = %s and u.deactivated_at is null and not u.private",
             (body.email.strip().lower(),),
         ).fetchone()
         if user is None:

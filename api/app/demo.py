@@ -43,7 +43,7 @@ def guard(conn, user_id) -> None:
 def add_visitor(conn, email: str, name: str, sub: str) -> dict:
     """Create a Google visitor and put them on the demo teams. Called only in demo mode."""
     user = conn.execute(
-        "insert into users (email, name, google_sub) values (%s, %s, %s)"
+        "insert into users (email, name, google_sub, private) values (%s, %s, %s, true)"
         " returning id, email, name, is_admin, google_sub, deactivated_at",
         (email, name, sub),
     ).fetchone()

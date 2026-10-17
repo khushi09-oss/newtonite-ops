@@ -18,7 +18,7 @@ CLOSED = (
 def inbox_queries(conn, user: dict) -> dict[str, tuple[str, list]]:
     """Team ids are fetched first and passed as arrays, so every bucket is a plain index condition."""
     if user["is_admin"]:
-        teams = [r["id"] for r in conn.execute("select id from teams")]
+        teams = [r["id"] for r in conn.execute("select id from teams where not private")]
         lead_of = teams
     else:
         rows = conn.execute(

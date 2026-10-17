@@ -15,7 +15,7 @@ CLOSED = "('resolved', 'closed')"  # written as the partial indexes define it
 
 def my_teams(conn, user: dict) -> tuple[list, list]:
     if user["is_admin"]:
-        teams = [r["id"] for r in conn.execute("select id from teams")]
+        teams = [r["id"] for r in conn.execute("select id from teams where not private")]
         return teams, teams
     rows = conn.execute(
         "select team_id, role from team_members where user_id = %s", (user["id"],)
