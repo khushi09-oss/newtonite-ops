@@ -246,6 +246,8 @@ times, with their errors, and retries them.
 1. In Google Cloud Console, open **APIs & Services**, then **OAuth consent screen**. Choose
    **External**, fill in the app name and support email, and add yourself as a test user.
    While the app is in testing, only test users can sign in; publish it to open it up.
+   Publishing asks for a homepage URL and a privacy policy URL: use the site's own URL and
+   `<site>/privacy`, a public page that says what the app keeps and for how long.
 2. Open **Credentials**, then **Create credentials**, then **OAuth client ID**, type **Web
    application**.
 3. Under **Authorized JavaScript origins** add `http://localhost:5173` and the site's own URL.

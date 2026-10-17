@@ -925,7 +925,25 @@ a.tile:hover {
   margin-top: 1px;
 }
 
-/* Sign-in */
+/* Sign-in, and the privacy page that shares its card. */
+.login-foot {
+  justify-self: center;
+}
+.doc {
+  width: min(640px, 100%);
+  gap: 12px;
+  line-height: 1.55;
+}
+.doc h2 {
+  font-size: 14px;
+  margin-top: 8px;
+}
+.doc ul {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 4px;
+}
 .login {
   min-height: 100%;
   display: grid;

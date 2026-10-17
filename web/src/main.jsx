@@ -13,6 +13,7 @@ import Items from "./pages/Items";
 import Item from "./pages/Item";
 import Notifications from "./pages/Notifications";
 import Admin from "./pages/Admin";
+import Privacy from "./pages/Privacy";
 import "./styles.css";
 
 const queryClient = new QueryClient({
@@ -133,6 +134,7 @@ createRoot(document.getElementById("root")).render(
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/privacy" element={<Privacy />} />
           <Route element={<Shell />}>
             <Route index element={<Dashboard />} />
             <Route path="/inbox" element={<Inbox />} />
