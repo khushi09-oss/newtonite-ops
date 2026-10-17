@@ -1752,7 +1752,7 @@ a.button:hover {
   border-color: var(--st-resolved);
   color: #fff;
 }
-.steps li.done strong {
+.steps li.done .step-body > strong {
   color: var(--muted);
   text-decoration: line-through;
 }
@@ -1786,6 +1786,27 @@ a.button:hover {
 }
 .add-member p {
   grid-column: 1 / -1;
+}
+.invite-note {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+}
+.invite-note textarea {
+  resize: none;
+  font-size: 13px;
+  color: var(--ink-2);
+  background: var(--surface);
+}
+.invite-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
 }
 .team-title {
   display: flex;
