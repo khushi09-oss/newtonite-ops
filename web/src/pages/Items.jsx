@@ -4,7 +4,7 @@ import { Link, useNavigate, useOutletContext, useSearchParams } from "react-rout
 import { pollEvery, useLiveConnected } from "../live";
 import { api, newKey } from "../api";
 import { Icon } from "../icons";
-import { ItemRow, KIND_LABEL, PRIORITY_LABEL, STATUS_LABEL, StatusIcon } from "../ui";
+import { ItemRow, KIND_LABEL, PRIORITY_LABEL, STATUS_LABEL, StatusIcon, useTeam } from "../ui";
 
 const FILTERS = ["team", "status", "priority", "assignee", "overdue", "q", "view"];
 // The inbox's questions, which ?view= narrows the list to (items.inbox_views on the server).
@@ -86,6 +86,9 @@ export default function Items() {
   const open = counts.data ? groups.filter((s) => !DONE.includes(s)).reduce((n, s) => n + counts.data.counts[s], 0) : 0;
   const filtered = FILTERS.some((f) => filters[f]);
   const canCreate = me.visible_teams.some((t) => t.can_create);
+  const { team: filteredTeam } = useTeam(me, filters.team || null);
+  const teamOptions =
+    filteredTeam && !me.visible_teams.some((t) => t.id === filteredTeam.id) ? [filteredTeam, ...me.visible_teams] : me.visible_teams;
 
   const toggle = (s) =>
     setFolded((f) => {
@@ -105,7 +108,7 @@ export default function Items() {
         </div>
         <div className="head-actions">
           {/* Filtered to one of your teams: its people are one click away. */}
-          {me.visible_teams.some((t) => t.id === filters.team) && (
+          {filteredTeam && (
             <Link to={`/teams/${filters.team}`} className="button">
               <Icon name="users" /> Members
             </Link>
@@ -117,7 +120,7 @@ export default function Items() {
           )}
         </div>
       </header>
-      {creating && <NewItem me={me} onDone={() => setCreating(false)} />}
+      {creating && <NewItem me={me} extra={filteredTeam} onDone={() => setCreating(false)} />}
       {VIEW_LABEL[filters.view] && (
         <div className="view-strip">
           <span>
@@ -143,7 +146,7 @@ export default function Items() {
         </label>
         <select aria-label="Team" value={filters.team} onChange={(e) => setFilter("team", e.target.value)}>
           <option value="">All my teams</option>
-          {me.visible_teams.map((t) => (
+          {teamOptions.map((t) => (
             <option key={t.id} value={t.id}>
               {t.name}
             </option>
@@ -263,12 +266,14 @@ function Group({ status, query, count, open, onToggle }) {
   );
 }
 
-function NewItem({ me, onDone }) {
+function NewItem({ me, extra, onDone }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const dialog = useRef(null);
   // Exactly the teams the server lets you create on (visible_teams.can_create).
-  const teams = me.visible_teams.filter((t) => t.can_create);
+  // A team picked in the filter that is past the first 200 /me sent is offered too.
+  const listed = me.visible_teams.some((t) => t.id === extra?.id);
+  const teams = [...(extra && !listed ? [extra] : []), ...me.visible_teams].filter((t) => t.can_create);
   const [form, setForm] = useState({
     team_id: teams[0] ? teams[0].id : "",
     kind: "task",

@@ -200,14 +200,18 @@ def change_user(
 
 
 @router.get("/teams")
-def list_teams(admin: dict = Depends(require_admin)):
+def list_teams(admin: dict = Depends(require_admin), q: str | None = Query(None, max_length=80)):
+    """Public teams, the first 100 by name; `q` finds any other by name or code."""
+    where, params = "", []
+    if q:
+        where, params = " and (t.name ilike %s or t.key ilike %s)", [db.contains(q)] * 2
     with db.pool.connection() as conn:
         rows = conn.execute(
             "select t.id, t.name, t.key, t.color, count(m.user_id) as members from teams t"
-            " left join team_members m on m.team_id = t.id where not t.private"
+            f" left join team_members m on m.team_id = t.id where not t.private{where}"
             " group by t.id order by t.name"
             " limit %s",
-            (LIST_CAP + 1,),
+            (*params, LIST_CAP + 1),
         ).fetchall()
     return {"teams": rows[:LIST_CAP], "capped": len(rows) > LIST_CAP}
 

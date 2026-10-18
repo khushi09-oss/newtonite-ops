@@ -1895,6 +1895,20 @@ a.button:hover {
 .load-error {
   margin: 8px 0;
 }
+.team-finder {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 10px;
+}
+.team-finder input {
+  background: var(--frame-2);
+  color: var(--on-frame);
+  border-color: transparent;
+}
+.team-finder .muted {
+  color: var(--on-frame-muted);
+  padding: 0 4px;
+}
 .roster-filter {
   display: grid;
   gap: 6px;

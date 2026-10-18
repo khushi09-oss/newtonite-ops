@@ -127,9 +127,10 @@ def logout(request: Request, response: Response):
 
 @router.get("/me")
 def me(user: dict = Depends(current_user)):
-    """The caller, the teams they are on, and every team they can see. The screens build every team
-    list from `visible_teams`, the same rule the item routes use (app.items.visible_teams)."""
-    from app.items import visible_teams  # items imports this module for current_user
+    """The caller, the teams they are on, and the teams they can see. The screens build every team
+    list from `visible_teams`, the same rule the item routes use (app.items.visible_teams). An admin
+    over many teams gets the first 200, your own first, and `GET /teams?q=` finds the rest."""
+    from app.items import TEAM_LIST_CAP, count_visible_teams, visible_teams  # items imports this
 
     with db.pool.connection() as conn:
         teams = conn.execute(
@@ -137,4 +138,12 @@ def me(user: dict = Depends(current_user)):
             " where m.user_id = %s order by t.name",
             (user["id"],),
         ).fetchall()
-        return {**user, "teams": teams, "visible_teams": visible_teams(conn, user)}
+        seen = visible_teams(conn, user, limit=TEAM_LIST_CAP + 1)
+        capped = len(seen) > TEAM_LIST_CAP
+        return {
+            **user,
+            "teams": teams,
+            "visible_teams": seen[:TEAM_LIST_CAP],
+            "visible_teams_capped": capped,
+            "visible_teams_total": count_visible_teams(conn, user) if capped else len(seen),
+        }

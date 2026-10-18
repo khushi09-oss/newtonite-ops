@@ -1,5 +1,7 @@
 // Small shared pieces: status and priority glyphs, people, relative time, and the words for events.
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
+import { api } from "./api";
 
 export const STATUS_LABEL = {
   new: "New",
@@ -307,20 +309,33 @@ export function ItemRow({ item, showStatus = true }) {
 
 // A team's people come 100 at a time. When there are more, or a search is on, this finds anyone by
 // name or email on the server, so a big team never silently hides someone.
-export function RosterFilter({ data, value, onChange }) {
+export function RosterFilter({
+  data,
+  value,
+  onChange,
+  label = "Find someone on this team",
+  placeholder = "Find someone by name or email",
+  note = "Showing the first 100. Search to find anyone else.",
+}) {
   if (!data?.capped && !value) return null;
   return (
     <div className="roster-filter">
-      <input
-        type="search"
-        aria-label="Find someone on this team"
-        placeholder="Find someone by name or email"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      />
-      {data?.capped && <span className="muted small">Showing the first 100. Search to find anyone else.</span>}
+      <input type="search" aria-label={label} placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} />
+      {data?.capped && <span className="muted small">{note}</span>}
     </div>
   );
+}
+
+// A team by id: from the teams /me sent, or, past the first 200 an admin is sent, from the server.
+export function useTeam(me, id) {
+  const listed = me.visible_teams.find((t) => t.id === id);
+  const fetched = useQuery({
+    queryKey: ["team", id],
+    queryFn: () => api(`/teams/${id}`),
+    enabled: Boolean(id) && !listed && me.visible_teams_capped,
+    retry: false,
+  });
+  return { team: listed || fetched.data, pending: !listed && fetched.isFetching };
 }
 
 export const rosterQuery = (path, find, extra = "") => `${path}?q=${encodeURIComponent(find.trim())}${extra}`;

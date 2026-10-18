@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BrowserRouter, Link, Navigate, NavLink, Outlet, Route, Routes, useLocation, useMatch, useNavigate } from "react-router-dom";
@@ -28,6 +28,31 @@ function NavCount({ n, more = false, hot = false, title }) {
     <span className={`nav-count${hot ? " hot" : ""}`} title={title} data-short={n > 99 ? "99+" : full}>
       {full}
     </span>
+  );
+}
+
+// Past the first 200 teams /me sends, any other is one search away.
+function TeamFinder({ total, shown }) {
+  const [find, setFind] = useState("");
+  const q = find.trim();
+  const found = useQuery({
+    queryKey: ["team-search", q],
+    queryFn: () => api(`/teams?q=${encodeURIComponent(q)}`),
+    enabled: q.length > 0,
+  });
+  return (
+    <div className="team-finder">
+      <input type="search" aria-label="Find a team" placeholder={`Find any of ${total} teams`} value={find} onChange={(e) => setFind(e.target.value)} />
+      {!q && <span className="muted small">Listing the first {shown}.</span>}
+      {found.data?.teams.map((t) => (
+        <Link key={t.id} to={`/items?team=${t.id}`} className="team-link">
+          <span className="team-swatch" style={{ background: teamColor(t.color) }} />
+          {t.name}
+          <span className="role">{t.role}</span>
+        </Link>
+      ))}
+      {found.data?.teams.length === 0 && <span className="muted small">No team matches.</span>}
+    </div>
   );
 }
 
@@ -143,6 +168,7 @@ function ShellBody({ me, demo, qc, navigate }) {
           ))}
           {/* An admin also sees the teams they are not on; they are listed, so the sidebar matches the data. */}
           {otherTeams.length > 0 && <div className="rail-section">Other teams</div>}
+          {me.visible_teams_capped && <TeamFinder total={me.visible_teams_total} shown={me.visible_teams.length} />}
           {otherTeams.map((t) => (
             <Link key={t.id} to={`/items?team=${t.id}`} className="team-link">
               <span className="team-swatch" style={{ background: teamColor(t.color) }} />

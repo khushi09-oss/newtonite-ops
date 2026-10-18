@@ -44,3 +44,28 @@ test("a sidebar link replaces the search instead of the old search coming back",
   expect(new URL(page.url()).searchParams.get("q")).toBeNull();
   await expect(page.getByLabel("Search items")).toHaveValue("");
 });
+
+test("closing an inline panel puts focus back on the button that opened it", async ({ page }) => {
+  await signIn(page, "Risk lead");
+  const me = await (await page.request.get("/api/me")).json();
+  const risk = me.teams.find((t) => t.name === "Risk");
+  const res = await page.request.post("/api/items", {
+    headers: { "Idempotency-Key": randomUUID() },
+    data: { team_id: risk.id, kind: "task", title: `Focus check ${randomUUID().slice(0, 8)}` },
+  });
+  const item = await res.json();
+  await page.goto(`/items/${item.id}`);
+  const claim = page.waitForResponse((r) => /\/claim$/.test(new URL(r.url()).pathname));
+  await page.getByRole("button", { name: "Claim", exact: true }).first().click(); // so Reassign is offered
+  await claim;
+
+  const reassign = page.getByRole("button", { name: "Reassign" });
+  await reassign.focus();
+  await page.keyboard.press("Enter");
+  await page.locator(".assign").getByRole("button", { name: "Cancel" }).click();
+  await expect(reassign).toBeFocused();
+
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await page.locator(".edit-form").getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByRole("button", { name: "Edit", exact: true })).toBeFocused();
+});

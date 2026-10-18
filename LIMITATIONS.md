@@ -102,10 +102,6 @@ adding it would take. The reasoning behind what *was* built is in
 
 ## Data and lists
 
-- **Closing an inline editor or picker does not return focus** to the button that opened it;
-  focus falls to the page, so a keyboard user starts again from the top.
-  Why: the dialogs (new item, invite) handle focus natively. The inline panels on the item page
-  would each need to remember their opener, which is small work not done yet.
 - **Text has length limits:** titles 200 characters, descriptions 10,000, comments 5,000 and
   notes 2,000. Everything is trimmed, so a title of spaces is refused.
   Why: history is append-only, so whatever is written stays forever, and the search index has a
@@ -120,11 +116,12 @@ adding it would take. The reasoning behind what *was* built is in
   per team (`RSK-1204`).
   Why: the keys stay gapless and in order (D-23). People create items far slower than the lock
   is held. A bulk import into one team would queue.
-- **The list of your teams is not capped.** `/me` returns every team you can see, which for an
-  admin is every public team, and the sidebar lists them all in a scrolling panel.
-  Why: every screen's team picker reads that one list (D-29), so capping it would hide teams
-  from the pickers too. At hundreds of teams it is a few kilobytes; at thousands it would need a
-  search, like the rosters have.
+- **The screens are sent 200 teams at a time.** Your own teams always, then, for an admin, other
+  public teams by name. Past that the sidebar offers "Find any of N teams", and a team reached by
+  link or search is fetched on its own, so the team page, the filters and the new-item dialog
+  still work for it. The admin's teams tab and invite dialog show 100 and search the rest.
+  Why: one list feeds every team picker (D-29). Sending thousands of teams on every page load
+  would cost each screen for the sake of a team few people open.
 - **A team's people are listed 100 at a time.** The team page, the admin roster and the reassign
   picker show the first 100, say so, and offer a search that finds anyone else by name or email.
   Why: a list a thousand long is not a way to find someone; a search is. The picker asks only for

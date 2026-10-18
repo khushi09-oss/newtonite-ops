@@ -135,9 +135,16 @@ function People({ me }) {
   );
 }
 
+const TEAM_FILTER = { label: "Find a team", placeholder: "Find a team by name or code", note: "Showing the first 100 teams. Search to find any other." };
+
 function InviteDialog({ onDone, onInvited }) {
   const dialog = useRef(null);
-  const teams = useQuery({ queryKey: ["admin", "teams"], queryFn: () => api("/admin/teams") });
+  const [findTeam, setFindTeam] = useState("");
+  const teams = useQuery({
+    queryKey: ["admin", "teams", findTeam],
+    queryFn: () => api(rosterQuery("/admin/teams", findTeam)),
+    placeholderData: keepPreviousData,
+  });
   const [form, setForm] = useState({ email: "", name: "", team_id: "", role: "member", is_admin: false });
   const retry = useRetryKey();
   const send = useAdminMutation(() =>
@@ -190,6 +197,7 @@ function InviteDialog({ onDone, onInvited }) {
             Name
             <input required value={form.name} onChange={set("name")} />
           </label>
+          <RosterFilter data={teams.data} value={findTeam} onChange={setFindTeam} {...TEAM_FILTER} />
           <label>
             Team
             <select value={form.team_id} onChange={set("team_id")}>
@@ -228,7 +236,12 @@ function InviteDialog({ onDone, onInvited }) {
 }
 
 function Teams() {
-  const teams = useQuery({ queryKey: ["admin", "teams"], queryFn: () => api("/admin/teams") });
+  const [findTeam, setFindTeam] = useState("");
+  const teams = useQuery({
+    queryKey: ["admin", "teams", findTeam],
+    queryFn: () => api(rosterQuery("/admin/teams", findTeam)),
+    placeholderData: keepPreviousData,
+  });
   const [selected, setSelected] = useState(null);
   const [name, setName] = useState("");
   const retry = useRetryKey();
@@ -258,6 +271,7 @@ function Teams() {
           </button>
         </form>
         {create.isError && <p className="error">{create.error.message}</p>}
+        <RosterFilter data={teams.data} value={findTeam} onChange={setFindTeam} {...TEAM_FILTER} />
         <div className="team-list">
           {list.map((t) => (
             <button key={t.id} className={`team-pick ${t.id === team?.id ? "on" : ""}`} aria-pressed={t.id === team?.id} onClick={() => setSelected(t.id)}>

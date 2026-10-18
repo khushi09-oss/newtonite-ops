@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useOutletContext, useParams } from "react-router-dom";
 import { api, newKey } from "../api";
@@ -28,6 +28,22 @@ const NOTE_REQUIRED = { "awaiting_approval>triaged": true };
 const ORDER = Object.keys(STATUS_LABEL);
 const FINISHED = ["resolved", "closed"];
 
+// When an inline panel closes, focus goes back to the button that opened it, so a keyboard user
+// carries on where they were. If that button is gone (the item moved on), to `fallback`.
+function useReturnFocus(open, fallback) {
+  const opener = useRef(null);
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (open && !wasOpen.current) opener.current = document.activeElement;
+    if (!open && wasOpen.current) {
+      // An opener that vanished as the panel opened left focus on the page itself: not a target.
+      const back = opener.current;
+      (back && back !== document.body && back.isConnected ? back : fallback.current)?.focus();
+    }
+    wasOpen.current = open;
+  }, [open, fallback]);
+}
+
 // Events by their sequence number, each once, newest first.
 const mergeEvents = (...lists) => [...new Map(lists.flat().map((e) => [e.seq, e])).values()].sort((a, b) => b.seq - a.seq);
 
@@ -56,6 +72,11 @@ function Item() {
   const [note, setNote] = useState("");
   const [editing, setEditing] = useState(false);
   const [assigning, setAssigning] = useState(false);
+  const nextStep = useRef(null); // stands in for an opener that is no longer on the page
+  const editButton = useRef(null); // hidden while editing, so a new one comes back
+  useReturnFocus(editing, editButton);
+  useReturnFocus(assigning, nextStep);
+  useReturnFocus(Boolean(noteFor), nextStep);
   const [comment, setComment] = useState("");
 
   // Every mutation goes through here: optimistic apply, roll back on any error, 409 becomes the strip.
@@ -344,7 +365,9 @@ function Item() {
 
         <aside className="item-side">
           <section className="side-card">
-            <h2>Next step</h2>
+            <h2 ref={nextStep} tabIndex={-1}>
+              Next step
+            </h2>
             <p className="muted small">{nextHint(it, Boolean(primary || others.length || claimAside), primary)}</p>
             {primary && (
               <button className="primary wide" onClick={() => (primary === "claim" ? claim() : transition(primary))} disabled={busy}>
@@ -401,7 +424,7 @@ function Item() {
                   </button>
                 )}
                 {can("edit") && !editing && (
-                  <button className="ghost small-btn" onClick={() => setEditing(true)}>
+                  <button ref={editButton} className="ghost small-btn" onClick={() => setEditing(true)}>
                     Edit
                   </button>
                 )}

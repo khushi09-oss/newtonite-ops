@@ -77,12 +77,17 @@ def check_offered_teams(c, label: str) -> None:
     me = c.get("/me").json()
     seen = {UUID(t["id"]): t for t in me["visible_teams"]}
     mine = {UUID(t["id"]) for t in me["teams"]}
-    assert mine <= set(seen), label  # every team you are on is offered
-    assert set(seen) == (public | (mine & private) if me["is_admin"] else mine), label
+    allowed = public | (mine & private) if me["is_admin"] else mine
+    assert mine <= set(seen), label  # every team you are on is offered, even past the cap
+    assert me["visible_teams_total"] == len(allowed), label
+    if me["visible_teams_capped"]:  # the first 200, all of them ones the server allows
+        assert len(seen) == 200 and set(seen) <= allowed, label
+    else:
+        assert set(seen) == allowed, label
     # One team of each role they hold, plus one they cannot see: creating there must answer
     # exactly what /me promised (201 may create, 403 sees but may not, 404 cannot see).
     picks = {t["role"]: tid for tid, t in seen.items()}
-    unseen = sorted((public | private) - set(seen))
+    unseen = sorted((public | private) - allowed)
     for tid in [*picks.values(), *unseen[:1]]:
         r = c.post(
             "/items",
