@@ -5,22 +5,16 @@ from fastapi import APIRouter, Depends
 
 from app import db
 from app.auth import current_user
-from app.items import OPEN
+from app.items import OPEN, OVERDUE, inbox_views, team_scope
 
 router = APIRouter()
 TREND_DAYS = 14
 RECENT = 15
-CLOSED = "('resolved', 'closed')"  # written as the partial indexes define it
 
 
 def my_teams(conn, user: dict) -> tuple[list, list]:
-    if user["is_admin"]:
-        teams = [r["id"] for r in conn.execute("select id from teams where not private")]
-        return teams, teams
-    rows = conn.execute(
-        "select team_id, role from team_members where user_id = %s", (user["id"],)
-    ).fetchall()
-    return [r["team_id"] for r in rows], [r["team_id"] for r in rows if r["role"] == "lead"]
+    """Every team the caller can see, and those where they approve: the shared rule (items.team_scope)."""
+    return team_scope(conn, user)
 
 
 def queries(user: dict, teams: list, lead_of: list) -> dict[str, tuple[str, dict]]:
@@ -33,22 +27,22 @@ def queries(user: dict, teams: list, lead_of: list) -> dict[str, tuple[str, dict
         "days": TREND_DAYS,
         "recent": RECENT,
     }
+    # The tiles count the inbox's own questions (items.inbox_views) and the list's Overdue filter,
+    # so a tile, its inbox tab and its "Show all" list always agree.
+    views = inbox_views(user, teams, lead_of)
+    terms = [
+        ("assigned", views["assigned"]),
+        ("approvals", views["approvals"]),
+        ("urgent", views["unassigned_urgent"]),
+        ("overdue", (f"w.team_id = any(%s) and {OVERDUE}", [teams])),
+        ("stale", views["stale"]),
+    ]
+    count_sql = ", ".join(
+        f"(select count(*) from work_items w where {where}) as {name}" for name, (where, _) in terms
+    )
+    count_params = [p for _, (_, params) in terms for p in params]
     return {
-        "counts": (
-            (
-                "select"
-                f" (select count(*) from work_items where assignee_id = %(me)s and status not in {CLOSED}) as assigned,"
-                " (select count(*) from work_items where team_id = any(%(lead_of)s)"
-                "   and status = 'awaiting_approval' and approval_requested_by <> %(me)s) as approvals,"
-                " (select count(*) from work_items where team_id = any(%(teams)s)"
-                f"   and status not in {CLOSED} and assignee_id is null and priority <= 1) as urgent,"
-                " (select count(*) from work_items where team_id = any(%(teams)s)"
-                f"   and status not in {CLOSED} and due_at is not null and due_at < now()) as overdue,"
-                " (select count(*) from work_items where team_id = any(%(teams)s)"
-                f"   and status not in {CLOSED} and last_activity_at < now() - interval '3 days') as stale"
-            ),
-            p,
-        ),
+        "counts": (f"select {count_sql}", count_params),
         "by_team": (
             (
                 "select t.id as team_id, t.name as team, w.status, count(*) as n"

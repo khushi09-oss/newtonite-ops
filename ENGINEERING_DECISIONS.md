@@ -215,6 +215,8 @@ scoped to the user, so two users cannot collide and one user cannot replay anoth
 
 ## D-13 The inbox is four indexed queries with team ids passed in, not one query over everything
 
+> Extended by D-38: each question is defined once and also drives the list and the dashboard.
+
 **Situation.** "What needs my attention" is the page people open most, against tens of thousands
 of items, and it must stay fast as the history grows.
 
@@ -679,4 +681,22 @@ Neon's would lose a session setting the same way.
 
 **Trade-off.** Titles only, since descriptions are long and would match too much. Results stay in
 order of last change. A search runs one extra statement to set the threshold.
+
+## D-38 Each inbox question is defined once, and the inbox, the list and the dashboard all use it
+
+**Situation.** Inbox tabs showed the first 50 items with no way to see the rest. The same four
+questions (assigned to me, needs my approval, urgent and unclaimed, gone quiet) were written three
+times: in the inbox, in the dashboard's tiles, and partly in the list's filters, along with the
+overdue rule twice. Each also worked out an admin's teams its own way, apart from the shared rule
+in D-29.
+
+**Decision.** `inbox_views()` in `app/items.py` holds the four questions as WHERE terms, and
+`OVERDUE` holds the overdue one. The inbox adds an order and a cap to each. The items list and its
+group counts accept `?view=` with the same terms, behind "Show all in Items" on every tab. The
+dashboard's tiles count the same terms. All of them take their teams from `team_scope()`, built on
+`visible_teams()`, so the list also now shows an admin the private teams they are on.
+
+**Trade-off.** None worth noting: the queries are the same shape as before and stay on their
+indexes, which a test checks for every view. A second test builds a small workspace and requires
+each tab, its full list, its counts and its tile to name the same items.
 

@@ -121,9 +121,9 @@ adding it would take. The reasoning behind what *was* built is in
   word also counts ("refnd" finds "Refund"). Results are sorted by last change, not by relevance.
   Why: both run on indexes with no extra service (D-06, D-37). A dedicated engine is worth it only
   if relevance becomes the complaint.
-- **The inbox shows the first 50 of each tab,** and "gone quiet" is fixed at three days.
-  Why: the inbox is for what needs you now. The items list, with filters and paging, is the way
-  to see everything.
+- **The inbox shows the first 50 of each tab,** with "Show all in Items" opening every match, and
+  "gone quiet" is fixed at three days.
+  Why: the inbox is for what needs you now. The list answers the same question with paging (D-38).
 - **The seed only loads into an empty database.** To reseed locally, drop the Postgres volume
   (`docker compose down -v`) and start again.
   Why: seeding over real data would be destructive. On the demo the nightly reset reseeds.

@@ -338,3 +338,55 @@ def test_respreading_colours_keeps_public_teams_apart_from_private_ones():
     finally:
         admin.execute(f"drop database if exists {name} with (force)")
         admin.close()
+
+
+def test_each_inbox_tab_its_show_all_list_and_its_dashboard_tile_agree(client, demo_on):
+    """One definition per question (items.inbox_views): in a small workspace, every inbox tab, its
+    "Show all" list with its counts, and its dashboard tile name exactly the same items."""
+    lead, _ = visitor()
+    team = lead.post("/teams", json={"name": "Views"}).json()["id"]
+    added = lead.put(f"/teams/{team}/members", json={"email": f"m-{uuid4().hex[:8]}@example.com"})
+    mate = as_user(added.json()["user_id"])
+
+    def act(c, path, body=None):
+        r = c.post(path, json=body, headers={"Idempotency-Key": str(uuid4())})
+        assert r.status_code < 300, r.text
+        return r.json()
+
+    def make(c, title, priority=2):
+        return act(
+            c, "/items", {"team_id": team, "kind": "task", "title": title, "priority": priority}
+        )
+
+    mine = make(lead, "Mine")
+    act(lead, f"/items/{mine['id']}/claim", {"version": 1})
+    asked = make(mate, "Needs sign-off")
+    asked = act(mate, f"/items/{asked['id']}/claim", {"version": 1})
+    act(
+        mate,
+        f"/items/{asked['id']}/transition",
+        {"version": asked["version"], "to": "awaiting_approval"},
+    )
+    make(lead, "Urgent and nobody on it", priority=0)
+    quiet = make(lead, "Gone quiet")
+    with db.pool.connection() as conn:  # four days without a change
+        conn.execute(
+            "update work_items set last_activity_at = now() - interval '4 days' where id = %s",
+            (quiet["id"],),
+        )
+
+    inbox = lead.get("/inbox").json()
+    tiles = lead.get("/dashboard").json()["counts"]
+    tile_of = {
+        "assigned": "assigned",
+        "approvals": "approvals",
+        "unassigned_urgent": "urgent",
+        "stale": "stale",
+    }
+    for view, tile in tile_of.items():
+        tab = {i["id"] for i in inbox[view]["items"]}
+        assert tab and not inbox[view]["capped"], view
+        listed = {i["id"] for i in lead.get("/items", params={"view": view}).json()["items"]}
+        counted = sum(lead.get("/items/counts", params={"view": view}).json()["counts"].values())
+        assert listed == tab and counted == len(tab) == tiles[tile], view
+    assert lead.get("/items", params={"view": "nonsense"}).status_code == 422

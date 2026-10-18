@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { pollEvery, useLiveConnected } from "../live";
 import { ItemRow } from "../ui";
@@ -61,7 +61,13 @@ export default function Inbox() {
           </div>
         </div>
       )}
-      {bucket.capped && <p className="muted small more-note">Showing the first {bucket.items.length}.</p>}
+      {bucket.items.length > 0 && (
+        <p className="muted small more-note">
+          {bucket.capped ? `Showing the first ${bucket.items.length}. ` : ""}
+          {/* The list answers the same question (one definition on the server), with every match. */}
+          <Link to={`/items?view=${key}`}>Show all in Items</Link>
+        </p>
+      )}
     </div>
   );
 }

@@ -184,7 +184,7 @@ def visible_teams(conn, user: dict, team_id=None) -> list[dict]:
     team list the screens show, so a picker can never offer a team the server would refuse."""
     cond = " and t.id = %(team)s" if team_id is not None else ""
     return conn.execute(
-        "select t.id, t.name, t.key, t.color, coalesce(m.role, 'admin') as role,"
+        "select t.id, t.name, t.key, t.color, t.private, coalesce(m.role, 'admin') as role,"
         " (%(admin)s or coalesce(m.role in ('member', 'lead'), false)) as can_create"
         " from teams t left join team_members m on m.team_id = t.id and m.user_id = %(me)s"
         f" where (m.user_id is not null or {ADMIN_SEES}){cond}"
@@ -201,6 +201,57 @@ def next_team_colour(conn, user: dict) -> int:
     takes it, so up to eight teams always look different in anyone's sidebar and lists."""
     used = [t["color"] for t in visible_teams(conn, user)]
     return min(range(TEAM_COLOURS), key=lambda c: (used.count(c), c))
+
+
+def team_scope(conn, user: dict) -> tuple[list, list]:
+    """Ids of every team the caller can see, and of those where they approve: the ones they lead, and
+    for an admin every public team, as `allowed_actions` decides through `require_access`."""
+    seen = visible_teams(conn, user)
+    approve = [
+        t["id"] for t in seen if t["role"] == "lead" or (user["is_admin"] and not t["private"])
+    ]
+    return [t["id"] for t in seen], approve
+
+
+# Written exactly as the partial indexes define open work, so the planner can use them.
+UNFINISHED = "('resolved', 'closed')"
+STALE_AFTER = "3 days"
+# Open and past its due date; the list's Overdue filter and the dashboard's tile both use it.
+OVERDUE = f"w.status not in {UNFINISHED} and w.due_at < now()"
+INBOX_VIEWS = ("assigned", "approvals", "unassigned_urgent", "stale")
+
+
+def inbox_views(user: dict, teams: list, approve_on: list) -> dict[str, tuple[str, list]]:
+    """The inbox's four questions as WHERE terms, defined once. The inbox shows the first 50 of each;
+    the items list shows all of one with ?view=, so the two can never disagree."""
+    return {
+        "assigned": (f"w.assignee_id = %s and w.status not in {UNFINISHED}", [user["id"]]),
+        "approvals": (
+            (
+                "w.team_id = any(%s) and w.status = 'awaiting_approval'"
+                " and w.approval_requested_by <> %s"
+            ),
+            [approve_on, user["id"]],
+        ),
+        "unassigned_urgent": (
+            (
+                f"w.team_id = any(%s) and w.status not in {UNFINISHED}"
+                " and w.assignee_id is null and w.priority <= 1"
+            ),
+            [teams],
+        ),
+        "stale": (
+            (
+                f"w.team_id = any(%s) and w.status not in {UNFINISHED}"
+                f" and w.last_activity_at < now() - interval '{STALE_AFTER}'"
+            ),
+            [teams],
+        ),
+    }
+
+
+def inbox_view(conn, user: dict, name: str) -> tuple[str, list]:
+    return inbox_views(user, *team_scope(conn, user))[name]
 
 
 def load_item(conn, item_id) -> dict | None:
@@ -267,16 +318,20 @@ def recent_events(conn, item_id, limit: int = 20, before_seq: int | None = None)
     ).fetchall()
 
 
-def filters(user: dict, team, status, priority, assignee, q, overdue) -> tuple[list, list]:
+def filters(
+    user: dict, team, status, priority, assignee, q, overdue, view=None
+) -> tuple[list, list]:
     """The WHERE terms the list and its counts share: visibility first, then each filter given."""
     where, params = [], []
-    if user["is_admin"]:
-        where.append("not t.private")
-    else:
-        where.append(
-            "exists (select 1 from team_members m where m.team_id = w.team_id and m.user_id = %s)"
-        )
-        params.append(user["id"])
+    # The same rule as visible_teams: your own teams, and for an admin every public one.
+    where.append(
+        "((%s and not t.private) or exists"
+        " (select 1 from team_members m where m.team_id = w.team_id and m.user_id = %s))"
+    )
+    params += [user["is_admin"], user["id"]]
+    if view is not None:  # one of the inbox's questions, (WHERE term, params) from inbox_view
+        where.append(view[0])
+        params += view[1]
     for col, val in (
         ("w.team_id", team),
         ("w.status", status),
@@ -287,7 +342,7 @@ def filters(user: dict, team, status, priority, assignee, q, overdue) -> tuple[l
             where.append(f"{col} = %s")
             params.append(val)
     if overdue:  # matches the partial index on (team_id, due_at) for open work
-        where.append("w.status not in ('resolved', 'closed') and w.due_at < now()")
+        where.append(OVERDUE)
     key = re.fullmatch(r"\s*(?:([a-z]{2,6})-)?(\d+)\s*", q or "", re.IGNORECASE)
     # "RSK-1204" finds that item on the (team_id, number) index; "1204" finds it on every team.
     if key:
@@ -330,9 +385,10 @@ def list_query(
     cursor=None,
     limit: int = 50,
     overdue: bool = False,
+    view=None,
 ) -> tuple[str, list]:
     """Built per request so each filter is a real constant to the planner and the composite index is used."""
-    where, params = filters(user, team, status, priority, assignee, q, overdue)
+    where, params = filters(user, team, status, priority, assignee, q, overdue, view)
     if cursor:
         try:
             at, _, cid = base64.urlsafe_b64decode(cursor).decode().partition(" ")
@@ -358,10 +414,14 @@ def list_items(
     cursor: str | None = None,
     limit: int = Query(50, ge=1, le=LIST_CAP),
     overdue: bool = False,
+    view: Literal[INBOX_VIEWS] | None = None,
 ):
-    sql, params = list_query(user, team, status, priority, assignee, q, cursor, limit, overdue)
     with db.pool.connection() as conn, conn.transaction():
         open_search(conn)
+        scope = inbox_view(conn, user, view) if view else None
+        sql, params = list_query(
+            user, team, status, priority, assignee, q, cursor, limit, overdue, scope
+        )
         rows = conn.execute(sql, params).fetchall()
     capped = len(rows) > limit
     rows = rows[:limit]
@@ -382,11 +442,13 @@ def count_items(
     assignee: UUID | None = None,
     q: str | None = None,
     overdue: bool = False,
+    view: Literal[INBOX_VIEWS] | None = None,
 ):
     """How many items match the list's filters, per status, for the headers of a list grouped by status."""
-    where, params = filters(user, team, None, priority, assignee, q, overdue)
     with db.pool.connection() as conn, conn.transaction():
         open_search(conn)
+        scope = inbox_view(conn, user, view) if view else None
+        where, params = filters(user, team, None, priority, assignee, q, overdue, scope)
         rows = conn.execute(
             "select w.status, count(*) as n from work_items w join teams t on t.id = w.team_id"
             f" where {' and '.join(where) or 'true'} group by w.status",
