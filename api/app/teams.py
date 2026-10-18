@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 from app import db, demo
 from app.admin import record, release_open_items, team_key
 from app.auth import current_user
+from app.idempotency import RetryKey, idempotent
 from app.items import next_team_colour
 
 router = APIRouter()
@@ -26,7 +27,7 @@ class NewTeam(BaseModel):
 
 
 @router.post("/teams", status_code=201)
-def create_team(body: NewTeam, user: dict = Depends(current_user)):
+def create_team(body: NewTeam, user: dict = Depends(current_user), key: RetryKey = None):
     """A visitor's own team, with them as its lead. Only on the demo, and only for a visitor's own
     account: a team made from a shared demo account would be visible to every visitor."""
     if not demo.DEMO_MODE:
@@ -34,7 +35,8 @@ def create_team(body: NewTeam, user: dict = Depends(current_user)):
     if not user["private"]:
         raise HTTPException(403, "Sign in with Google to start your own workspace")
     name = body.name.strip()
-    with db.pool.connection() as conn, conn.transaction():
+
+    def run():
         try:
             team = conn.execute(
                 "insert into teams (name, key, private, color) values (%s, %s, true, %s)"
@@ -48,7 +50,10 @@ def create_team(body: NewTeam, user: dict = Depends(current_user)):
             (team["id"], user["id"]),
         )
         record(conn, user, "team_created", team_id=team["id"], name=team["name"])
-    return {**team, "role": "lead"}
+        return {**team, "role": "lead"}
+
+    with db.pool.connection() as conn, conn.transaction():
+        return idempotent(conn, user, key, "workspace-team", body, run, status=201)
 
 
 def lead_of(conn, user: dict, team_id: UUID) -> dict:
@@ -123,11 +128,14 @@ def add_member(team_id: UUID, body: Member, user: dict = Depends(current_user)):
 
 
 @router.delete("/teams/{team_id}/members/{user_id}")
-def remove_member(team_id: UUID, user_id: UUID, user: dict = Depends(current_user)):
+def remove_member(
+    team_id: UUID, user_id: UUID, user: dict = Depends(current_user), key: RetryKey = None
+):
     """Take someone off the team. Their open items on it are released, each in the item's history."""
     if user_id == user["id"]:
         raise HTTPException(422, "You cannot take yourself off your own team")
-    with db.pool.connection() as conn, conn.transaction():
+
+    def run():
         lead_of(conn, user, team_id)
         gone = conn.execute(
             "delete from team_members where team_id = %s and user_id = %s returning role",
@@ -147,4 +155,7 @@ def remove_member(team_id: UUID, user_id: UUID, user: dict = Depends(current_use
             role=gone["role"],
             released=held,
         )
-    return {"released": len(held)}
+        return {"released": len(held)}
+
+    with db.pool.connection() as conn, conn.transaction():
+        return idempotent(conn, user, key, f"lead-remove:{team_id}:{user_id}", None, run)

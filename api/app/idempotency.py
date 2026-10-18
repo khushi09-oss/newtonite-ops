@@ -4,11 +4,15 @@ response; a repeat with the same key and body replays it; the same key with a di
 import hashlib
 import json
 from collections.abc import Callable
+from typing import Annotated
 
-from fastapi import HTTPException
+from fastapi import Header, HTTPException
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from psycopg.types.json import Jsonb
+
+# The header every write that is not naturally safe to repeat accepts, as `key: RetryKey = None`.
+RetryKey = Annotated[str | None, Header(alias="Idempotency-Key")]
 
 
 def idempotent(

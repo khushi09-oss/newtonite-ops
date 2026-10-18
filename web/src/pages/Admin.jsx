@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, useOutletContext, useSearchParams } from "react-router-dom";
-import { api } from "../api";
+import { api, useRetryKey } from "../api";
 import { Icon } from "../icons";
 import { Avatar, Time, teamColor } from "../ui";
 
@@ -139,9 +139,11 @@ function InviteDialog({ onDone, onInvited }) {
   const dialog = useRef(null);
   const teams = useQuery({ queryKey: ["admin", "teams"], queryFn: () => api("/admin/teams") });
   const [form, setForm] = useState({ email: "", name: "", team_id: "", role: "member", is_admin: false });
+  const retry = useRetryKey();
   const send = useAdminMutation(() =>
     api("/admin/users", {
       method: "POST",
+      key: retry.key(),
       body: {
         email: form.email.trim(),
         name: form.name.trim(),
@@ -165,6 +167,7 @@ function InviteDialog({ onDone, onInvited }) {
           e.preventDefault();
           send.mutate(undefined, {
             onSuccess: (person) => {
+              retry.done();
               onInvited(person.email);
               dialog.current.close();
             },
@@ -228,7 +231,8 @@ function Teams() {
   const teams = useQuery({ queryKey: ["admin", "teams"], queryFn: () => api("/admin/teams") });
   const [selected, setSelected] = useState(null);
   const [name, setName] = useState("");
-  const create = useAdminMutation(() => api("/admin/teams", { method: "POST", body: { name: name.trim() } }));
+  const retry = useRetryKey();
+  const create = useAdminMutation(() => api("/admin/teams", { method: "POST", key: retry.key(), body: { name: name.trim() } }));
   const list = teams.data?.teams || [];
   const team = list.find((t) => t.id === selected) || list[0];
   return (
@@ -240,6 +244,7 @@ function Teams() {
             e.preventDefault();
             create.mutate(undefined, {
               onSuccess: (t) => {
+                retry.done();
                 setName("");
                 setSelected(t.id);
               },
