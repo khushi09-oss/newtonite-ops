@@ -325,6 +325,20 @@ def test_list_uses_index(login, team_id):
     assert "Seq Scan on work_items" not in plan, plan
 
 
+def test_search_forgives_a_typo_in_a_title_but_not_an_unrelated_word(client, login, team_id):
+    login("dev.mehta@newtonite.dev")
+    tag = uuid4().hex[:6]
+    item = new_item(client, team_id("Risk"), title=f"Chargeback dispute escalated {tag}")
+    found = lambda q: {i["id"] for i in client.get("/items", params={"q": q}).json()["items"]}
+    assert item["id"] in found("chargeback")  # a whole word, as before
+    assert item["id"] in found("chargbak")  # two letters missing
+    assert item["id"] in found("escalatd")
+    assert item["id"] not in found("xylophone")
+    # The group counts share the same filter, so they agree with the list.
+    counts = client.get("/items/counts", params={"q": "chargbak"}).json()["counts"]
+    assert sum(counts.values()) >= 1
+
+
 def test_status_counts_match_the_list_and_stay_inside_my_teams(client, login, team_id):
     login("ben.okafor@newtonite.dev")  # leads Compliance, views Risk
     title = f"Counted once {uuid4()}"

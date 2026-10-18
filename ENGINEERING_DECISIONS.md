@@ -92,6 +92,8 @@ out of scope for a day.
 
 ## D-06 Keyset pagination and Postgres full-text search
 
+> Extended by D-37: search also forgives typos in titles.
+
 **Situation.** Tens of thousands of items and a growing history; the brief forbids loading
 everything into the browser or into memory.
 
@@ -660,4 +662,21 @@ sidebar, on every page, and as a banner on their dashboard that opens the jobs t
 
 **Trade-off.** It is in-app only: an admin who never signs in is still not told. Email or chat
 alerts need a sending setup this project does not have (D-28).
+
+## D-37 Search forgives typos in titles, on a trigram index, with the threshold set per search
+
+**Situation.** Full-text search matches whole words and their stems, so "refnd" found nothing, and
+people type fast under pressure. LIMITATIONS listed no fuzzy matching.
+
+**Decision.** Migration 012 adds `pg_trgm` and a GIN trigram index on titles. The shared search
+filter, which the list and its group counts both use, also accepts a title with a word close to
+what was typed (`<%`), from four letters up; shorter, near matches would be nearly everything. The
+threshold, 0.5, was measured: "chargbak" scores 0.56 against "Chargeback" and "refnd" 0.50 against
+"Refund", while unrelated words score 0.2 or less. It is set with `set local` inside each search's
+transaction. Setting it on the database was tried first: the API's pooled connections, opened
+before the migration ran, kept the default and found nothing, and a transaction-mode pooler like
+Neon's would lose a session setting the same way.
+
+**Trade-off.** Titles only, since descriptions are long and would match too much. Results stay in
+order of last change. A search runs one extra statement to set the threshold.
 
