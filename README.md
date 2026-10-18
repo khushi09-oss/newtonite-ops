@@ -390,7 +390,7 @@ Set in `.env` locally, or as environment variables wherever the API runs.
 | `WRITE_LIMIT_PER_MINUTE` | `300` | Writes per user per minute before 429. |
 | `DRAIN_OUTBOX_IN_REQUESTS` | not set | `true` on Vercel, where no worker process runs. |
 | `DEMO_MODE` | not set | `true` only for a public demo: any Google account gets its own private workspace, demo accounts are protected, the shared data resets nightly, workspaces in use are kept. |
-| `CRON_SECRET` | not set | A random string; the daily sweep must present it. |
+| `CRON_SECRET` | not set | A random string that the scheduled sweeps (hourly from GitHub, daily from Vercel) and the nightly demo reset must present. Set the same value as a GitHub repository secret. |
 | `DB_POOL_MAX` | `20` | Connections per API instance. `5` on Vercel. |
 | `GOOGLE_CLIENT_ID` | empty, so Google sign-in is hidden | The OAuth client ID from Google Cloud. |
 | `ADMIN_EMAILS` | empty | The first admins, comma separated. They become admins on their first Google sign-in. |
