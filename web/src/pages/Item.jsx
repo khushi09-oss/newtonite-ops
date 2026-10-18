@@ -120,13 +120,17 @@ export default function Item() {
   const transitions = it.allowed_actions.filter((a) => a.startsWith("transition:")).map((a) => a.slice(11));
   const events = [...it.events, ...older];
   const last = conflict && conflict.events && conflict.events[0];
-  // The step that moves the work on gets the primary button: claiming it, or the next status along.
+  // The step that moves the work on gets the primary button: a claim that starts the work, else the
+  // next status along, else a claim that only takes ownership. The server says which a claim is.
   const forward = transitions.find((to) => ORDER.indexOf(to) > ORDER.indexOf(it.status));
-  const primary = can("claim") ? "claim" : forward;
+  const primary = can("claim") && it.claim_to ? "claim" : forward || (can("claim") ? "claim" : undefined);
   const others = transitions.filter((to) => to !== primary);
+  // A claim that only takes ownership, while a move has the primary button, sits with the other moves.
+  const claimAside = can("claim") && primary !== "claim";
   const overdue = it.due_at && new Date(it.due_at) < new Date() && !FINISHED.includes(it.status);
   const busy = act.isPending;
-  const claim = () => versioned("/claim", {}, () => ({ assignee_id: me.id, assignee_name: me.name, status: "in_progress" }));
+  const claim = () =>
+    versioned("/claim", {}, () => ({ assignee_id: me.id, assignee_name: me.name, ...(it.claim_to && { status: it.claim_to }) }));
   const tools = can("assign") || can("release") || (can("edit") && !editing);
 
   return (
@@ -311,19 +315,24 @@ export default function Item() {
         <aside className="item-side">
           <section className="side-card">
             <h2>Next step</h2>
-            <p className="muted small">{nextHint(it, Boolean(primary || others.length), primary)}</p>
+            <p className="muted small">{nextHint(it, Boolean(primary || others.length || claimAside), primary)}</p>
             {primary && (
               <button className="primary wide" onClick={() => (primary === "claim" ? claim() : transition(primary))} disabled={busy}>
                 {primary === "claim" ? "Claim" : TRANSITION_LABEL[primary](it.status)}
               </button>
             )}
-            {others.length > 0 && (
+            {(others.length > 0 || claimAside) && (
               <div className="actions">
                 {others.map((to) => (
                   <button key={to} onClick={() => transition(to)} disabled={busy}>
                     {TRANSITION_LABEL[to](it.status)}
                   </button>
                 ))}
+                {claimAside && (
+                  <button onClick={claim} disabled={busy}>
+                    Claim
+                  </button>
+                )}
               </div>
             )}
             {noteFor && (

@@ -88,7 +88,8 @@ numbers point to the full reasoning in [ENGINEERING_DECISIONS.md](ENGINEERING_DE
   so nothing uses offset paging and nothing slows down as data grows (D-06, D-24).
 - **The workflow.** New, triaged, in progress, awaiting approval, approved, resolved, closed.
   Only the moves in the transition table are allowed. A lead approves, never their own request.
-  Rejecting needs a note.
+  Rejecting needs a note. Claiming new or triaged work starts it; claiming anything else only
+  takes ownership, so an item waiting for approval stays waiting.
   *Why:* the rules live in one table on the server, so the UI cannot skip a step. A refused move
   answers 422 with the moves that are allowed (D-05).
 - **Claiming.** Claiming is one guarded database statement. When two people claim at once,
