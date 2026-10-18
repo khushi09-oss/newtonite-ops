@@ -96,7 +96,8 @@ export default function Login() {
                 <p className="muted">Google sign-in is not set up on this server.</p>
               )}
               <p className="muted small">
-                Private to you and the people you add. Cleared every night at 04:00 Singapore time.
+                Private to you and the people you add. Kept while you use it, and deleted after 7 days with no
+                sign-in.
               </p>
             </section>
           </div>

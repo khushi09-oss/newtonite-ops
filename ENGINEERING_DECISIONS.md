@@ -336,6 +336,8 @@ would close the gap without code changes.
 
 ## D-19 One deployment, run as a public demo, with the real sign-in still on show
 
+> Changed by D-41: visitors' workspaces in use are kept through the reset.
+
 > Partly superseded: a Google visitor now gets an empty, private workspace instead of joining Support and Risk (D-27), and the shared admin cannot see it (D-26).
 
 **Situation.** Reviewers need to use the app without being invited, but they should still see the
@@ -716,3 +718,21 @@ that can only fail.
 **Trade-off.** The colour is the team's, not each person's: when a lead changes it, everyone on
 the team sees the change. A per-person colour would let two people disagree about what the team
 looks like.
+
+## D-41 The nightly reset keeps the private workspaces still in use
+
+**Situation.** The demo wiped everything each night (D-19), visitors' own workspaces included. A
+visitor who set up a team and came back the next day would find it gone.
+
+**Decision.** Before the wipe, the reset copies each private team on which anyone has signed in
+within the last 7 days into temporary tables, with its members, items, history, watchers,
+notifications, live sessions, admin log entries and unfinished jobs. Every person a kept row
+points at is kept too, so putting the rows back cannot break a reference. Then it truncates,
+reseeds and puts the kept rows back with their own ids, all in one transaction. Identities are
+no longer restarted, so new rows never take an id a kept row still holds. Seven days is a
+session's lifetime, so anyone still using a workspace has signed in within it.
+
+**Trade-off.** Kept data no longer clears itself each night, so the privacy page now promises
+deletion 7 days after the last sign-in instead. Id numbers keep growing across resets, which a
+bigint absorbs for longer than the demo will run. The reset does more work as workspaces grow,
+though a demo's handful of visitor teams is small next to the 20,000 seeded items.
