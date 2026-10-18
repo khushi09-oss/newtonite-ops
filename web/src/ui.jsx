@@ -190,7 +190,7 @@ export function describeEvent(e, item) {
     case "created":
       return "created this item";
     case "claimed":
-      return "claimed it and started work";
+      return after.status ? "claimed it and started work" : "claimed it";
     case "released":
       return "released it";
     case "assigned":

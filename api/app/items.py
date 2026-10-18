@@ -52,6 +52,10 @@ TRANSITIONS = {
     ("closed", "triaged"): "lead",
 }
 NOTE_REQUIRED = {("awaiting_approval", "triaged")}
+# A claim takes ownership of unowned open work. On new or triaged work it also starts it: claiming
+# means "I am doing this now". Anywhere else it only takes ownership, so an item waiting for approval
+# stays in the approval queue and its request stays on record. Items report this as `claim_to`.
+CLAIM_STARTS = {"new": "in_progress", "triaged": "in_progress"}
 
 
 def _holds(rule: str, user: dict, role: str, item: dict) -> bool:
@@ -246,6 +250,7 @@ def _respond(conn, user: dict, item_id) -> dict:
     ).fetchone()
     return {
         **item,
+        "claim_to": CLAIM_STARTS.get(item["status"]),
         "watching": watching is not None,
         "allowed_actions": allowed_actions(user, item["role"], item),
         "events": recent_events(conn, item_id),
@@ -454,16 +459,13 @@ def patch_item(item_id: UUID, body: Patch, user: dict = Depends(current_user)):
 @router.post("/items/{item_id}/claim")
 def claim_item(item_id: UUID, body: Versioned, user: dict = Depends(current_user)):
     with db.pool.connection() as conn, conn.transaction():
-        _may(conn, user, item_id, "claim", body.version)
+        item = _may(conn, user, item_id, "claim", body.version)
+        changes = {"assignee_id": user["id"]}
+        if item["status"] in CLAIM_STARTS:
+            changes["status"] = CLAIM_STARTS[item["status"]]
         # The guard makes the claim atomic even if two callers hold the same version: one row, one winner.
         apply_change(
-            conn,
-            user,
-            "claimed",
-            {"assignee_id": user["id"], "status": "in_progress"},
-            item_id,
-            body.version,
-            guard="and assignee_id is null",
+            conn, user, "claimed", changes, item_id, body.version, guard="and assignee_id is null"
         )
         return _respond(conn, user, item_id)
 

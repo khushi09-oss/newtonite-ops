@@ -42,8 +42,13 @@ awaiting_approval → triaged    lead or admin ("rejected", note required)
 approved → resolved            assignee or lead
 resolved → closed              lead or admin
 closed → triaged               lead or admin ("reopen")
-any open state → in_progress   on claim
+new → in_progress              on claim (claiming starts the work)
+triaged → in_progress          on claim
 ```
+
+A claim takes ownership of unowned open work at any status. Only on new or triaged work does it
+also move the status; elsewhere it leaves the status alone, so an item waiting for approval stays
+in the approval queue (`CLAIM_STARTS` in `app/items.py`, D-33).
 
 Anything not listed is 422 with `allowed` in the body. The item response carries
 `allowed_actions` from the same function so the UI draws its buttons from the server.
@@ -52,7 +57,8 @@ Anything not listed is 422 with `allowed` in the body. The item response carries
 
 ```sql
 update work_items
-   set assignee_id = :me, status = 'in_progress', version = version + 1,
+   set assignee_id = :me, status = 'in_progress',   -- status only when claiming new or triaged work
+       version = version + 1,
        updated_at = now(), last_activity_at = now()
  where id = :id and assignee_id is null and version = :expected
 returning *;

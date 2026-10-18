@@ -574,3 +574,20 @@ plus a private team keyed between them, and requires eight different public colo
 **Trade-off.** None worth noting. A migration that has already run is never edited, so the fix is
 a second, small one.
 
+## D-33 A claim starts new work, and otherwise only takes ownership
+
+**Situation.** A claim always set the status to in progress, from any open status. The transition
+table did not know about it, so a claim was a second way to move status. A new item skipped triage
+without saying so, and an item waiting for approval, or already approved, that had lost its owner
+went back to in progress when someone claimed it, losing its place in the approval queue. An
+external review found it. The README said only the table's moves were allowed.
+
+**Decision.** `CLAIM_STARTS` sits next to the transition table: claiming new or triaged work moves
+it to in progress, because claiming means "I am doing this now". At any other open status a claim
+only takes ownership, and the status and the approval request stay. Each item reports this as
+`claim_to`, and the page reads it to show the claim before the server answers and to choose its
+main button. An unowned item waiting for approval offers Approve first, and Claim beside it.
+
+**Trade-off.** A claim on a new item still skips triage, on purpose: the person claiming it has
+looked at it. A test claims at every open status and requires that nothing leaves approval.
+

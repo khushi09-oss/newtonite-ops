@@ -364,3 +364,51 @@ def test_item_says_whether_i_watch_it(client, login):
     assert client.get(f"/items/{iid}").json()["watching"] is True
     assert client.delete(f"/items/{iid}/watch").status_code == 204
     assert client.get(f"/items/{iid}").json()["watching"] is False
+
+
+def test_a_claim_starts_new_work_but_never_moves_an_item_out_of_approval(client, login, team_id):
+    """A claim takes ownership. It moves the status only where the workflow starts (new, triaged),
+    and an item waiting for approval or already approved stays where it is, request and all."""
+    risk = team_id("Risk")
+
+    def claim(item, who):
+        login(who)
+        r = client.post(f"/items/{item['id']}/claim", json={"version": item["version"]})
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    def move(item, who, path, body):
+        login(who)
+        r = client.post(f"/items/{item['id']}{path}", json={"version": item["version"], **body})
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    dev, finn = "dev.mehta@newtonite.dev", "finn.okafor@newtonite.dev"
+    login(dev)
+    fresh = new_item(client, risk)
+    assert fresh["claim_to"] == "in_progress"
+    started = claim(fresh, dev)
+    assert started["status"] == "in_progress"
+
+    # Waiting for approval, then left without an owner: a claim takes it, the status and request stay.
+    waiting = move(started, dev, "/transition", {"to": "awaiting_approval"})
+    requester = waiting["approval_requested_by"]
+    waiting = move(waiting, finn, "/release", {})
+    assert waiting["claim_to"] is None
+    claimed = claim(waiting, "hugo.moreau@newtonite.dev")
+    assert claimed["status"] == "awaiting_approval"
+    assert claimed["approval_requested_by"] == requester
+    assert claimed["events"][0]["after"] == {"assignee_id": claimed["assignee_id"]}
+    login(finn)
+    lead_view = client.get(f"/items/{claimed['id']}").json()
+    assert "transition:approved" in lead_view["allowed_actions"]  # still in the approval queue
+
+    # Approved, then left without an owner: a claim keeps the approval.
+    approved = move(lead_view, finn, "/transition", {"to": "approved"})
+    approved = move(approved, finn, "/release", {})
+    assert claim(approved, dev)["status"] == "approved"
+
+    # Triaged work starts on a claim too.
+    login(dev)
+    triaged = move(new_item(client, risk), dev, "/transition", {"to": "triaged"})
+    assert claim(triaged, dev)["status"] == "in_progress"
