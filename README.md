@@ -223,6 +223,10 @@ On first start the API applies its migrations and seeds 40 users, 8 teams, 20,00
 and about 156,000 history events. That takes a few seconds. The web container installs its
 packages on first start, which takes about a minute. After that, starts are quick.
 
+Every package is pinned: Python ones in `api/uv.lock`, JavaScript ones in each `package-lock.json`.
+A fresh build installs exactly what the tests ran against. To update one, run
+`uv lock --upgrade-package <name>` in `api/`, rebuild, and run the tests.
+
 Sign in from the web page with the buttons for four useful roles: the admin, the Risk lead, a
 Risk member, and a Compliance lead who can only view Risk. There is no password (see
 Assumptions). Any other seeded person can be signed in from the shell with `/auth/dev-login`, as
