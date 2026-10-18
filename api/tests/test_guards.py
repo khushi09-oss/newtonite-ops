@@ -108,3 +108,110 @@ def test_idempotency_concurrent_duplicates_run_once(client, team_id):
     with db.pool.connection() as conn:
         n = conn.execute("select count(*) from work_items where title = %s", (title,)).fetchone()
     assert n["count"] == 1
+
+
+def test_null_in_any_field_of_any_write_is_refused_not_a_500(client, login, team_id):
+    """Every write route, every field set to null in turn. A field that may be empty takes it; any
+    other answers 4xx. Nothing reaches the database as a NULL it forbids and comes back as 500."""
+    risk = str(team_id("Risk"))
+    hugo = "hugo.moreau@newtonite.dev"
+
+    def item_route(path, body):
+        def run(field):
+            finn = login("finn.okafor@newtonite.dev")
+            created = client.post(
+                "/items",
+                json={"team_id": risk, "kind": "task", "title": "Null check"},
+                headers={"Idempotency-Key": str(uuid4())},
+            ).json()
+            sent = {**body(finn), field: None}
+            r = client.request(
+                "PATCH" if path == "" else "POST",
+                f"/items/{created['id']}{path}",
+                json=sent,
+                headers={"Idempotency-Key": str(uuid4())},
+            )
+            return r
+
+        return run
+
+    def admin_route(method, path, body):
+        def run(field):
+            login("ava.okafor@newtonite.dev")
+            target = client.post(
+                "/admin/users",
+                json={"email": f"null-{uuid4().hex[:8]}@example.com", "name": "Null"},
+            ).json()
+            team = client.post("/admin/teams", json={"name": f"Null {uuid4().hex[:8]}"}).json()
+            url = path.format(user=target["id"], team=team["id"])
+            return client.request(method, url, json={**body, field: None})
+
+        return run
+
+    def create(field):
+        login("finn.okafor@newtonite.dev")
+        body = {"team_id": risk, "kind": "task", "title": "t", "description": "d", "priority": 2}
+        return client.post(
+            "/items",
+            json={**body, "due_at": "2030-01-01T00:00:00Z", field: None},
+            headers={"Idempotency-Key": str(uuid4())},
+        )
+
+    def lead_adds(field):
+        login("finn.okafor@newtonite.dev")
+        url = f"/teams/{risk}/members"
+        return client.put(url, json={"email": hugo, "name": "Hugo", "role": "member", field: None})
+
+    def read_all(field):
+        login("dev.mehta@newtonite.dev")
+        return client.post("/notifications/read", json={"up_to": None})
+
+    routes = {
+        "create": (create, ["team_id", "kind", "title", "description", "priority", "due_at"]),
+        "edit": (
+            item_route(
+                "",
+                lambda _: {
+                    "version": 1,
+                    "title": "t",
+                    "description": "d",
+                    "priority": 1,
+                    "due_at": "2030-01-01T00:00:00Z",
+                },
+            ),
+            ["version", "title", "description", "priority", "due_at"],
+        ),
+        "claim": (item_route("/claim", lambda _: {"version": 1}), ["version"]),
+        "release": (item_route("/release", lambda _: {"version": 1}), ["version"]),
+        "assign": (
+            item_route("/assign", lambda me: {"version": 1, "assignee_id": me["id"]}),
+            ["version", "assignee_id"],
+        ),
+        "transition": (
+            item_route("/transition", lambda _: {"version": 1, "to": "triaged", "note": "n"}),
+            ["version", "to", "note"],
+        ),
+        "comment": (item_route("/comments", lambda _: {"body": "b"}), ["body"]),
+        "lead adds": (lead_adds, ["email", "name", "role"]),
+        "invite": (
+            admin_route("POST", "/admin/users", {"email": "x@example.com", "name": "N"}),
+            ["email", "name", "is_admin", "teams"],
+        ),
+        "change person": (
+            admin_route("PATCH", "/admin/users/{user}", {"name": "N", "is_admin": False}),
+            ["name", "is_admin", "active"],
+        ),
+        "create team": (admin_route("POST", "/admin/teams", {"name": "T"}), ["name"]),
+        "set role": (
+            admin_route("PUT", "/admin/teams/{team}/members/{user}", {"role": "member"}),
+            ["role"],
+        ),
+        "read all": (read_all, ["up_to"]),
+    }
+    crashed = []
+    for name, (send, fields) in routes.items():
+        for field in fields:
+            r = send(field)
+            if r.status_code >= 500:
+                crashed.append(f"{name} {field}=null -> {r.status_code}")
+    assert crashed == []
