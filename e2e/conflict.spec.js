@@ -40,10 +40,17 @@ test("a stale edit is rolled back and the conflict strip names who changed what"
   const lead = await signIn(browser, LEAD);
   const id = await newRiskItem(member.page, `E2E stale edit ${randomUUID().slice(0, 8)}`);
 
-  // The member's page must stay stale. With its live stream cut it would still poll every 15 s, and on
-  // a busy machine that poll can land mid-test and quietly fetch the new version. A frozen clock stops
-  // the poll; clicks and server answers do not need timers.
-  await member.page.clock.install();
+  // The member's page must stay stale. With its live stream cut it still polls every 15 s, and on a
+  // busy machine that poll can land mid-test and quietly fetch the new version. A fake clock does not
+  // stop it, since fake time still runs. So until the conflict is shown, every reload of the item gets
+  // the copy the member first saw, as a tab left open would. The 409 itself carries the new version.
+  const itemUrl = `**/api/items/${id}`;
+  let firstCopy;
+  await member.page.route(itemUrl, async (route) => {
+    if (route.request().method() !== "GET") return route.continue();
+    firstCopy ??= await (await route.fetch()).text();
+    return route.fulfill({ status: 200, contentType: "application/json", body: firstCopy });
+  });
   await member.page.goto(`/items/${id}`);
   await lead.page.goto(`/items/${id}`);
   await expect(prop(member.page, "Version")).toHaveText("1");
@@ -63,7 +70,8 @@ test("a stale edit is rolled back and the conflict strip names who changed what"
   await expect(strip).toContainText("Your change was not saved");
   await expect(prop(member.page, "Status")).toContainText("New");
 
-  // Retry applies the same move on top of the new version.
+  // Retry applies the same move on top of the new version, and the page reloads the real item again.
+  await member.page.unroute(itemUrl);
   await strip.getByRole("button", { name: "Retry on the new version" }).click();
   await expect(member.page.locator(".conflict")).toHaveCount(0);
   await expect(prop(member.page, "Status")).toContainText("Triaged");
