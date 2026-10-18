@@ -4,6 +4,7 @@ what just happened. Every number is one query on an index, scoped to the caller'
 from fastapi import APIRouter, Depends
 
 from app import db
+from app.admin import PUBLIC_JOB
 from app.auth import current_user
 from app.items import OPEN, OVERDUE, inbox_views, team_scope
 
@@ -110,7 +111,9 @@ def dashboard(user: dict = Depends(current_user)):
         # Admins are the ones who can retry a failed job, so their dashboard and sidebar say when
         # one is waiting (D-21). Everyone else gets null. One count on the (status, id) index.
         failed_jobs = (
-            conn.execute("select count(*) as n from outbox where status = 'dead'").fetchone()["n"]
+            conn.execute(
+                f"select count(*) as n from outbox o where status = 'dead' and {PUBLIC_JOB}"
+            ).fetchone()["n"]
             if user["is_admin"]
             else None
         )

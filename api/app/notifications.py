@@ -7,22 +7,27 @@ from pydantic import BaseModel
 
 from app import db
 from app.auth import current_user
-from app.items import require_access
+from app.items import SEES_TEAM, require_access
 
 router = APIRouter()
 LIST_CAP = 50
 
 
 def notify(conn, payload: dict) -> None:
-    """Outbox handler for item_event. One notification per watcher, assignee and reporter, never the
-    actor. Safe to run twice: (user_id, event_id) is unique and the insert does nothing on conflict."""
+    """Outbox handler for item_event. One notification per watcher, assignee and reporter who can
+    still see the item, never the actor: someone taken off the team stops hearing about it. Safe to
+    run twice: (user_id, event_id) is unique and the insert does nothing on conflict."""
     conn.execute(
         "insert into notifications (user_id, event_id)"
         " select distinct r.user_id, %(event_id)s from ("
         "   select user_id from watchers where item_id = %(item_id)s"
         "   union select assignee_id from work_items where id = %(item_id)s"
         "   union select reporter_id from work_items where id = %(item_id)s"
-        " ) r where r.user_id is not null and r.user_id <> %(actor_id)s"
+        " ) r join users u on u.id = r.user_id"
+        " join work_items w on w.id = %(item_id)s join teams t on t.id = w.team_id"
+        " where r.user_id <> %(actor_id)s and u.deactivated_at is null"
+        "   and ((u.is_admin and not t.private) or exists (select 1 from team_members m"
+        "     where m.team_id = t.id and m.user_id = r.user_id))"
         " on conflict do nothing",
         payload,
     )
@@ -62,8 +67,9 @@ def list_notifications(
             " from notifications n join work_item_events e on e.id = n.event_id"
             " join work_items w on w.id = e.item_id join teams t on t.id = w.team_id"
             " join users u on u.id = e.actor_id"
-            f" where n.user_id = %s{cond} order by n.id desc limit %s",
-            (user["id"], limit + 1),
+            # Ones from before you lost access to a team stay stored, but are not shown.
+            f" where n.user_id = %(me)s and {SEES_TEAM}{cond} order by n.id desc limit %(n)s",
+            {"me": user["id"], "admin": user["is_admin"], "n": limit + 1},
         ).fetchall()
     return {"notifications": rows[:limit], "capped": len(rows) > limit}
 

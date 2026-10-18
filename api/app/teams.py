@@ -14,7 +14,7 @@ from psycopg.errors import UniqueViolation
 from pydantic import BaseModel, Field
 
 from app import db, demo
-from app.admin import record, release_open_items, team_key
+from app.admin import record, release_if_viewer, release_open_items, team_key
 from app.auth import current_user
 from app.idempotency import RetryKey, idempotent
 from app.items import TEAM_COLOURS, next_team_colour
@@ -116,6 +116,7 @@ def add_member(team_id: UUID, body: Member, user: dict = Depends(current_user)):
             " on conflict (team_id, user_id) do update set role = excluded.role",
             (team_id, person["id"], body.role),
         )
+        released = release_if_viewer(conn, user, team_id, person["id"], body.role)
         record(
             conn,
             user,
@@ -125,7 +126,13 @@ def add_member(team_id: UUID, body: Member, user: dict = Depends(current_user)):
             before=before["role"] if before else None,
             after=body.role,
         )
-    return {"team_id": team_id, "user_id": person["id"], "email": email, "role": body.role}
+    return {
+        "team_id": team_id,
+        "user_id": person["id"],
+        "email": email,
+        "role": body.role,
+        "released": released,
+    }
 
 
 @router.delete("/teams/{team_id}/members/{user_id}")

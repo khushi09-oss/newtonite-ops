@@ -753,3 +753,22 @@ session's lifetime, so anyone still using a workspace has signed in within it.
 deletion 7 days after the last sign-in instead. Id numbers keep growing across resets, which a
 bigint absorbs for longer than the demo will run. The reset does more work as workspaces grow,
 though a demo's handful of visitor teams is small next to the 20,000 seeded items.
+
+## D-42 Losing access to a team ends it everywhere at once, and a viewer holds no work
+
+**Situation.** The item page already answered 404 to someone taken off a team. But notifications
+were sent to everyone who had ever watched, owned or reported an item, and listed without a
+check, so a removed member kept reading comments and edits. The inbox's "assigned to me" asked
+only who the owner was, so an item reopened after its owner left came back to them. And a member
+made a viewer kept their items and could still move them, because "is the assignee" did not ask
+about the role.
+
+**Decision.** One rule, "on the team, or an admin and the team is public", now also decides who is
+notified (`notify`), which notifications are listed (`SEES_TEAM`), and what "assigned to me"
+shows. A viewer is never treated as an item's owner. Becoming a viewer hands back your open items
+on that team, as leaving it does, each release in the item's history. Jobs about a private item
+are kept out of the shared admin's lists, counts and retries.
+
+**Trade-off.** Notifications from before someone lost access stay stored but are hidden, so a
+person added back sees them again. Deleting them would have been simpler to reason about but
+would rewrite what the system recorded.

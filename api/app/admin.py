@@ -56,6 +56,15 @@ USER_VIEW = (
 )
 
 
+def release_if_viewer(conn, actor: dict, team_id, user_id, role: str) -> int:
+    """A viewer does no work, so becoming one hands back the open items you held on that team, the
+    same as leaving it. Each release is in the item's history."""
+    if role != "viewer":
+        return 0
+    note = "Released: their role on this team is now viewer"
+    return len(release_open_items(conn, actor, user_id, note, team_id=team_id))
+
+
 def release_open_items(conn, admin: dict, user_id, note: str, team_id=None) -> list[str]:
     """Release every open item `user_id` holds (on one team, or all), each through apply_change."""
     cond, params = "", [user_id, list(OPEN)]
@@ -287,6 +296,7 @@ def set_role(
             )
         except ForeignKeyViolation:
             raise HTTPException(404, "team or user not found")
+        released = release_if_viewer(conn, admin, team_id, user_id, body.role)
         record(
             conn,
             admin,
@@ -296,7 +306,7 @@ def set_role(
             before=before["role"] if before else None,
             after=body.role,
         )
-        return {"team_id": team_id, "user_id": user_id, "role": body.role}
+        return {"team_id": team_id, "user_id": user_id, "role": body.role, "released": released}
 
     with db.pool.connection() as conn, conn.transaction():
         return idempotent(conn, admin, key, f"set-role:{team_id}:{user_id}", body, run)
@@ -354,6 +364,12 @@ def admin_log(admin: dict = Depends(require_admin), limit: int = Query(50, ge=1,
 
 
 JOB_STATUSES = ("pending", "done", "dead")
+# Jobs the admin may see and retry: all but those about an item on a private team, whose title,
+# error text and very existence belong to that workspace (D-26). Those still retry on their own.
+PUBLIC_JOB = (
+    "not exists (select 1 from work_items pw join teams pt on pt.id = pw.team_id"
+    " where pw.id::text = o.payload->>'item_id' and pt.private)"
+)
 
 
 @router.get("/jobs")
@@ -368,7 +384,9 @@ def list_jobs(
     with db.pool.connection() as conn:
         counts = {
             r["status"]: r["n"]
-            for r in conn.execute("select status, count(*) as n from outbox group by status")
+            for r in conn.execute(
+                f"select status, count(*) as n from outbox o where {PUBLIC_JOB} group by status"
+            )
         }
         rows = conn.execute(
             "select o.id, o.kind, o.status, o.attempts, o.last_error, o.created_at,"
@@ -376,7 +394,7 @@ def list_jobs(
             " w.id as item_id, w.title as item_title"
             " from outbox o left join (work_items w join teams t on t.id = w.team_id and not t.private)"
             " on w.id::text = o.payload->>'item_id'"
-            " where o.status = %s order by o.id desc limit %s",
+            f" where o.status = %s and {PUBLIC_JOB} order by o.id desc limit %s",
             (status, limit + 1),
         ).fetchall()
     return {
@@ -393,12 +411,13 @@ def retry_job(job_id: int, admin: dict = Depends(require_admin), key: RetryKey =
 
     def run():
         row = conn.execute(
-            "update outbox set status = 'pending', attempts = 0, next_attempt_at = now()"
-            " where id = %s and status = 'dead' returning id, kind, last_error",
+            "update outbox o set status = 'pending', attempts = 0, next_attempt_at = now()"
+            f" where id = %s and status = 'dead' and {PUBLIC_JOB} returning id, kind, last_error",
             (job_id,),
         ).fetchone()
         if row is None:
-            if conn.execute("select 1 from outbox where id = %s", (job_id,)).fetchone() is None:
+            seen = conn.execute(f"select 1 from outbox o where id = %s and {PUBLIC_JOB}", (job_id,))
+            if seen.fetchone() is None:
                 raise HTTPException(404, "job not found")
             raise HTTPException(409, "That job is not failed any more; someone may have retried it")
         record(

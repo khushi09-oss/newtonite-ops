@@ -35,6 +35,12 @@ NAMES = (
 # Admins skip the membership check, except on private teams: on the public demo the admin account
 # is shared, and a visitor's own workspace must stay theirs. See migration 008.
 ADMIN_SEES = "(%(admin)s and not t.private)"
+# The whole rule for a team `t`: you are on it, or you are an admin and it is public. Used where a
+# row is about an item and must stop showing the moment its reader loses access to the team.
+SEES_TEAM = (
+    f"({ADMIN_SEES} or exists (select 1 from team_members sm"
+    " where sm.team_id = t.id and sm.user_id = %(me)s))"
+)
 FROM = (
     " from work_items w join teams t on t.id = w.team_id join users r on r.id = w.reporter_id"
     " left join users a on a.id = w.assignee_id"
@@ -60,7 +66,8 @@ CLAIM_STARTS = {"new": "in_progress", "triaged": "in_progress"}
 
 def _holds(rule: str, user: dict, role: str, item: dict) -> bool:
     is_lead = role in ("lead", "admin")
-    is_assignee = item["assignee_id"] == user["id"]
+    # A viewer follows work and does none of it, even on an item still in their name.
+    is_assignee = item["assignee_id"] == user["id"] and role != "viewer"
     return {
         "member": role != "viewer",
         "assignee": is_assignee,
@@ -225,7 +232,11 @@ def inbox_views(user: dict, teams: list, approve_on: list) -> dict[str, tuple[st
     """The inbox's four questions as WHERE terms, defined once. The inbox shows the first 50 of each;
     the items list shows all of one with ?view=, so the two can never disagree."""
     return {
-        "assigned": (f"w.assignee_id = %s and w.status not in {UNFINISHED}", [user["id"]]),
+        # Only on teams you can see now: an item reopened after you left a team is not yours to do.
+        "assigned": (
+            f"w.assignee_id = %s and w.team_id = any(%s) and w.status not in {UNFINISHED}",
+            [user["id"], teams],
+        ),
         "approvals": (
             (
                 "w.team_id = any(%s) and w.status = 'awaiting_approval'"

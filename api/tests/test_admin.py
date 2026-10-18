@@ -11,6 +11,8 @@ from fastapi.testclient import TestClient
 from test_google import CLIENT, KEY, token
 
 from app import db, google
+from app.items import allowed_actions
+from app.notifications import notify
 from app.main import app
 
 ADMIN = "ava.okafor@newtonite.dev"
@@ -231,3 +233,114 @@ def test_a_team_past_the_first_100_people_hides_nobody_from_search(client, login
         ).json()["members"]
         == []
     )
+
+
+def move(c, item, to, **extra):
+    r = c.post(
+        f"/items/{item['id']}/{'claim' if to == 'claim' else 'transition'}",
+        json={"version": item["version"], **({} if to == "claim" else {"to": to}), **extra},
+        headers={"Idempotency-Key": str(uuid4())},
+    )
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def test_someone_taken_off_a_team_stops_seeing_its_items_anywhere(client, team):
+    """Leaving a team ends access everywhere at once: the item page already said 404, and now the
+    inbox, the dashboard and notifications agree, even for an item still in their name."""
+    lead_id = invite(client, team, "lead")["id"]
+    lead = as_user(lead_id)
+    mate_id = invite(client, team, "member")["id"]
+    mate = as_user(mate_id)
+    item = new_item(mate, team)
+    for c, to in ((mate, "claim"), (mate, "awaiting_approval"), (lead, "approved")):
+        item = move(c, item, to)
+    for c, to in ((mate, "resolved"), (lead, "closed")):
+        item = move(c, item, to)
+    assert client.delete(f"/admin/teams/{team['id']}/members/{mate_id}").json()["released"] == 0
+    item = move(lead, item, "triaged")  # reopened, still in the old member's name
+    assert item["assignee_id"] == mate_id
+
+    comment = lead.post(f"/items/{item['id']}/comments", json={"body": "after they left"}).json()
+    event = comment["events"][0]
+    with db.pool.connection() as conn:
+        first = conn.execute(
+            "select id from work_item_events where item_id = %s and seq = 1", (item["id"],)
+        ).fetchone()["id"]
+        conn.execute(
+            "insert into notifications (user_id, event_id) values (%s, %s) on conflict do nothing",
+            (mate_id, first),
+        )
+        notify(
+            conn,
+            {
+                "item_id": item["id"],
+                "event_id": event["id"],
+                "actor_id": lead_id,
+                "kind": "comment",
+            },
+        )
+        told = conn.execute(
+            "select count(*) as n from notifications where user_id = %s and event_id = %s",
+            (mate_id, event["id"]),
+        ).fetchone()["n"]
+    assert told == 0  # not notified of anything after leaving
+    seen = mate.get("/notifications").json()["notifications"]
+    assert item["id"] not in {n["item_id"] for n in seen}  # nor shown the ones from before
+    inbox = mate.get("/inbox").json()
+    assert item["id"] not in {i["id"] for i in inbox["assigned"]["items"]}
+    assert mate.get("/items", params={"view": "assigned"}).json()["items"] == []
+    assert mate.get(f"/items/{item['id']}").status_code == 404
+
+
+def test_a_member_made_a_viewer_hands_back_their_open_work(client, team):
+    lead = as_user(invite(client, team, "lead")["id"])
+    mate_id = invite(client, team, "member")["id"]
+    mate = as_user(mate_id)
+    item = move(mate, new_item(mate, team), "claim")
+    r = client.put(f"/admin/teams/{team['id']}/members/{mate_id}", json={"role": "viewer"})
+    assert r.status_code == 200 and r.json()["released"] == 1
+    now = mate.get(f"/items/{item['id']}").json()
+    assert now["assignee_id"] is None and now["events"][0]["kind"] == "released"
+    assert now["allowed_actions"] == ["comment", "watch"]
+    # And the rule itself: a viewer whose name is still on an item may not move it.
+    held = {**now, "assignee_id": mate_id, "status": "triaged"}
+    assert allowed_actions({"id": mate_id}, "viewer", held) == ["comment", "watch"]
+    assert lead.get(f"/items/{item['id']}").status_code == 200
+
+
+def test_the_shared_admin_sees_no_job_about_a_private_item(client, login):
+    with db.pool.connection() as conn:
+        # A visitor's workspace item, as the demo makes one.
+        owner = conn.execute(
+            "insert into users (email, name, private) values (%s, 'Owner', true) returning id",
+            (f"owner-{uuid4().hex[:8]}@example.com",),
+        ).fetchone()["id"]
+        team = conn.execute(
+            "insert into teams (name, key, private, color, next_number)"
+            " values ('Mine', %s, true, 0, 1) returning id",
+            (f"P{uuid4().hex[:6].upper()}",),
+        ).fetchone()["id"]
+        private = conn.execute(
+            "insert into work_items (team_id, kind, title, reporter_id, number)"
+            " values (%s, 'task', 'Private', %s, 1) returning id",
+            (team, owner),
+        ).fetchone()
+        conn.execute(  # its history, as apply_change would have written it
+            "insert into work_item_events (item_id, seq, actor_id, kind) values (%s, 1, %s, 'created')",
+            (private["id"], owner),
+        )
+        job = conn.execute(
+            "insert into outbox (kind, payload, status, attempts, last_error)"
+            " values ('item_event', jsonb_build_object('item_id', %s::text), 'dead', 8, 'private')"
+            " returning id",
+            (private["id"],),
+        ).fetchone()["id"]
+    login(ADMIN)
+    before = client.get("/dashboard").json()["failed_jobs"]
+    jobs = client.get("/admin/jobs", params={"status": "dead", "limit": 100}).json()
+    assert job not in {j["id"] for j in jobs["jobs"]}
+    assert client.post(f"/admin/jobs/{job}/retry").status_code == 404
+    with db.pool.connection() as conn:
+        conn.execute("delete from outbox where id = %s", (job,))
+    assert client.get("/dashboard").json()["failed_jobs"] == before  # it was never counted
