@@ -38,6 +38,32 @@ on it keeps signing in, and goes 7 days after the last sign-in (D-41).
 The demo runs with `DEMO_MODE=true`. Without it, the same code is invite-only: Google sign-in
 admits only people an admin has invited, and there is no passwordless sign-in.
 
+### A ten-minute tour
+
+Open the site in two windows, one of them private, so you can be two people at once.
+
+1. **Claim race.** Sign in as **Risk member** in one window and **Risk lead** in the other. Open
+   the same unclaimed item in both (Inbox, "Urgent, unclaimed") and press Claim in both. One wins;
+   the other is told who did, and both pages agree.
+2. **Live updates.** Leave the item open in one window and comment in the other. The comment
+   appears without a reload.
+3. **Stale edit.** Live updates usually refresh a page before anyone can act on an old copy. When
+   a change still slips past (two people within a second, or a laptop waking from sleep), the
+   late action is rolled back with a note naming who changed what, and Retry applies it on top.
+   The claim race in step 1 shows that note; the browser tests force the slower case.
+4. **Approvals.** As the member, claim an item and request approval. The lead finds it under
+   "Needs my approval" and approves or rejects it with a note; nobody approves their own request.
+   Then the member resolves it and only the lead can close it.
+5. **Roles.** Sign in as **Compliance lead**: Risk items are visible but offer no actions, and
+   the page says why. Sign in as **Admin** for the Admin page: people, teams, background jobs
+   and the log of every admin change.
+6. **Your own workspace.** Sign in with Google, create a team, add someone by email and run an
+   item through it. The demo's admin cannot see any of it.
+
+Each of these is also an automated test; see [Run the tests](#run-the-tests). The reasoning is in
+[ENGINEERING_DECISIONS.md](ENGINEERING_DECISIONS.md), and what is deliberately left out, with
+why, is in [LIMITATIONS.md](LIMITATIONS.md).
+
 ## Every feature, and why it works this way
 
 Each part of the app in plain words: what it does, and why it was built that way. The `D-NN`
@@ -464,7 +490,7 @@ given to a different Google account, sign-in is refused.
 - **Organisations.** A demo workspace is a set of private teams. Real organisations, with a
   name, their own admins and billing, mean scoping every team, item and query to one, with tests
   that try to cross between organisations on every route.
-- **Operations.** Alerts when a background job fails for good, and metrics on queue depth and
-  conflict rate.
+- **Operations.** Failed jobs already show on the admin's dashboard. Next: an alert outside the
+  app when one fails, and metrics on queue depth and conflict rate.
 - **At larger scale.** Partition the history table by time, give each preview deploy its own
   database copy, and move search to a dedicated engine only if relevance becomes the complaint.
