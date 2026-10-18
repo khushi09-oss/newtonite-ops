@@ -130,9 +130,10 @@ adding it would take. The reasoning behind what *was* built is in
 ## Background jobs
 
 - **A job that fails eight times stops** and waits for an admin to retry it from the Admin page.
-  Nothing alerts anyone. The count shows only on that page's tab.
-  Why: retrying forever hides a broken handler. Stopping makes the failure visible (D-21).
-  Alerting needs somewhere to send the alert, which is the same missing email setup.
+  Admins are told in the app, with a red count on the Admin link and a banner on their dashboard
+  (D-36), but nobody is emailed or paged.
+  Why: retrying forever hides a broken handler. Stopping makes the failure visible (D-21). Alerts
+  outside the app need somewhere to send them, which is the same missing email setup.
 - **Finished jobs are deleted after seven days.** Failed ones are kept until retried.
 - **Idempotency keys are kept for 24 hours.** A retry later than that runs the request again.
   Why: clients retry within seconds or minutes. A day covers that with a small table.

@@ -372,6 +372,8 @@ server on this channel.
 
 ## D-21 Failed jobs wait for a person, and housekeeping runs wherever the outbox is drained
 
+> Extended by D-36: admins are now told about failed jobs on their dashboard and sidebar.
+
 **Situation.** D-11 parks a job as dead after eight failures, and until now only the database
 could show or retry one. Separately, the cleanup of idempotency keys and rate-limit counters ran
 only in the worker process, so on Vercel, where there is no worker, it never ran at all.
@@ -646,4 +648,16 @@ comes back, the next request works without restarting anything.
 **Trade-off.** A query the database cancels, for example on a statement timeout, also reads as
 "not answering", which is close enough for a person. Ten seconds is long enough for Neon to wake a
 suspended database (about a second) and short enough not to look frozen.
+
+## D-36 Admins are told about failed jobs where they already look
+
+**Situation.** D-21 parked failed jobs on the Admin page's jobs tab, and nothing else said one was
+waiting. An admin who did not open that tab would never know a notification had not gone out.
+
+**Decision.** The dashboard response carries `failed_jobs` for admins, one count on the outbox's
+status index, and null for everyone else. Admins see it as a red count on the Admin link in the
+sidebar, on every page, and as a banner on their dashboard that opens the jobs tab.
+
+**Trade-off.** It is in-app only: an admin who never signs in is still not told. Email or chat
+alerts need a sending setup this project does not have (D-28).
 
