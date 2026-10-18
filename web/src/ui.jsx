@@ -245,6 +245,8 @@ export function DemoBanner({ workspace }) {
 
 // Each team stores its palette slot (0 to 7), picked when it was created as the one least used among
 // the teams its creator can see. The colours are the chart palette's validated categorical order.
+// In slot order, 0 to 7, as teams.color stores it.
+export const TEAM_COLOUR_NAMES = ["Blue", "Orange", "Green", "Amber", "Pink", "Dark green", "Violet", "Red"];
 const TEAM_SWATCHES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"];
 export function teamColor(slot) {
   return TEAM_SWATCHES[(slot ?? 0) % TEAM_SWATCHES.length];

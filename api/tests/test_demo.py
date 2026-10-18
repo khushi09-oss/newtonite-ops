@@ -85,7 +85,7 @@ def test_a_workspace_is_seen_only_by_its_lead_and_the_people_they_add(client, lo
     assert client.get("/admin/users", params={"q": email}).json()["users"] == []
 
 
-def test_a_new_workspace_gives_its_first_eight_teams_eight_different_colours(demo_on):
+def test_a_new_workspace_gives_its_first_eight_teams_eight_different_colours(client, demo_on):
     lead, _ = visitor()
     colours = [lead.post("/teams", json={"name": f"Team {n}"}).json()["color"] for n in range(9)]
     assert sorted(colours[:8]) == list(range(8))  # all eight colours before any repeats
@@ -99,9 +99,10 @@ def test_workspace_rules_keep_the_shared_demo_accounts_out(client, login, demo_o
     assert client.post("/teams", json={"name": "Shared"}).status_code == 403
     lead, lead_id = visitor()
     team = lead.post("/teams", json={"name": f"Ops {uuid4().hex[:6]}"}).json()["id"]
-    add = lambda c, email, role="member": c.put(
-        f"/teams/{team}/members", json={"email": email, "role": role}
-    )
+
+    def add(c, email, role="member"):
+        return c.put(f"/teams/{team}/members", json={"email": email, "role": role})
+
     assert add(lead, "dev.mehta@newtonite.dev").status_code == 403
     with db.pool.connection() as conn:
         lead_email = conn.execute("select email from users where id = %s", (lead_id,)).fetchone()
@@ -390,3 +391,43 @@ def test_each_inbox_tab_its_show_all_list_and_its_dashboard_tile_agree(client, d
         counted = sum(lead.get("/items/counts", params={"view": view}).json()["counts"].values())
         assert listed == tab and counted == len(tab) == tiles[tile], view
     assert lead.get("/items", params={"view": "nonsense"}).status_code == 422
+
+
+def test_a_team_colour_is_picked_by_its_lead_or_an_admin_and_every_screen_shows_it(
+    client, login, demo_on
+):
+    lead, _ = visitor()
+    other, _ = visitor()
+    team = lead.post("/teams", json={"name": f"Colours {uuid4().hex[:6]}"}).json()
+    url = f"/teams/{team['id']}"
+    r = lead.patch(url, json={"color": 5})
+    assert r.status_code == 200 and r.json()["color"] == 5
+    item = new_item(lead, team["id"])
+    assert lead.get(f"/items/{item['id']}").json()["team_color"] == 5
+    seen = {t["id"]: t["color"] for t in lead.get("/me").json()["visible_teams"]}
+    assert seen[team["id"]] == 5
+    for bad in (8, -1, None):
+        assert lead.patch(url, json={"color": bad}).status_code == 422
+
+    mate = as_user(
+        lead.put(f"{url}/members", json={"email": f"m-{uuid4().hex[:8]}@example.com"}).json()[
+            "user_id"
+        ]
+    )
+    assert mate.patch(url, json={"color": 1}).status_code == 403  # a member, not its lead
+    assert other.patch(url, json={"color": 1}).status_code == 404  # an outsider learns nothing
+    login(ADMIN)
+    assert client.patch(url, json={"color": 1}).status_code == 404  # private, even to the admin
+
+    # The demo's shared teams: not even their lead, but the admin may, as on the Admin page.
+    login("finn.okafor@newtonite.dev")
+    risk = next(t for t in client.get("/me").json()["teams"] if t["name"] == "Risk")
+    assert client.patch(f"/teams/{risk['id']}", json={"color": 1}).status_code == 403
+    login(ADMIN)
+    try:
+        r = client.patch(f"/teams/{risk['id']}", json={"color": (risk["color"] + 1) % 8})
+        assert r.status_code == 200
+        log = client.get("/admin/events", params={"limit": 1}).json()["events"][0]
+        assert log["kind"] == "team_colour_set" and log["target"]["before"] == risk["color"]
+    finally:
+        client.patch(f"/teams/{risk['id']}", json={"color": risk["color"]})
