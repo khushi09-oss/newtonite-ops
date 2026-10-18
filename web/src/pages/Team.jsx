@@ -238,6 +238,12 @@ export default function Team() {
       {remove.isSuccess && remove.data.released > 0 && (
         <p className="muted small">Released {remove.data.released} open item(s) they owned; each release is in the item's history.</p>
       )}
+      {setRole.isSuccess && setRole.data.released > 0 && (
+        <p className="muted small">
+          Viewers do no work, so {setRole.data.released} open item(s) they owned were released; each release is in the item's
+          history.
+        </p>
+      )}
       <div className="table">
         {members.isPending && <div className="group-note">Loading</div>}
         {members.data?.members.map((m) => (

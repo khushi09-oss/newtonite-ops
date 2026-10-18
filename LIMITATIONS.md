@@ -141,6 +141,10 @@ adding it would take. The reasoning behind what *was* built is in
   (D-36), but nobody is emailed or paged.
   Why: retrying forever hides a broken handler. Stopping makes the failure visible (D-21). Alerts
   outside the app need somewhere to send them, which is the same missing email setup.
+- **On the demo, a failed job about a visitor's workspace is not shown to the shared admin,** and
+  so cannot be retried by hand. It still retries on its own up to eight times.
+  Why: the shared admin cannot see a private workspace by any route (D-26), and a job's error text
+  and item are part of it. Off the demo there are no private teams, so every job is listed.
 - **Finished jobs are deleted after seven days.** Failed ones are kept until retried.
 - **Idempotency keys are kept for 24 hours.** A retry later than that runs the request again.
   Why: clients retry within seconds or minutes. A day covers that with a small table.

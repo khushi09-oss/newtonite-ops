@@ -335,6 +335,12 @@ function Roster({ team }) {
           Released {remove.data.released} open item(s) they owned; each release is in that item's history.
         </p>
       )}
+      {setRole.isSuccess && setRole.data.released > 0 && (
+        <p className="muted small roster-note">
+          Viewers do no work, so {setRole.data.released} open item(s) they owned were released; each release is in that
+          item's history.
+        </p>
+      )}
       <RosterFilter data={roster.data} value={filter} onChange={setFilter} />
       {roster.data?.members.length === 0 && (
         <div className="group-note">{filter ? "Nobody on this team matches." : "Nobody is on this team yet."}</div>

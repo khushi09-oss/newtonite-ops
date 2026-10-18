@@ -147,10 +147,9 @@ def test_housekeeping_purges_old_finished_jobs_but_keeps_failed_ones(client):
 def test_a_failed_job_is_reported_to_admins_and_only_to_admins(client, login):
     """A job that stops after its last attempt needs a person. Admins, who can retry it, see the
     count on their dashboard; everyone else sees nothing."""
+    login("ava.okafor@newtonite.dev")
+    before = client.get("/dashboard").json()["failed_jobs"]
     with db.pool.connection() as conn:
-        before = conn.execute("select count(*) as n from outbox where status = 'dead'").fetchone()[
-            "n"
-        ]
         rid = conn.execute(
             "insert into outbox (kind, payload, status, attempts, last_error)"
             " values ('test_alert', %s, 'dead', 8, 'boom') returning id",
