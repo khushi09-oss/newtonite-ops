@@ -344,3 +344,12 @@ def test_the_shared_admin_sees_no_job_about_a_private_item(client, login):
     with db.pool.connection() as conn:
         conn.execute("delete from outbox where id = %s", (job,))
     assert client.get("/dashboard").json()["failed_jobs"] == before  # it was never counted
+
+
+def test_an_invite_or_team_with_bad_input_is_refused_not_a_500(client, team):
+    twice = [{"team_id": team["id"], "role": "member"}, {"team_id": team["id"], "role": "lead"}]
+    body = {"email": f"twice-{uuid4().hex[:8]}@example.com", "name": "Twice", "teams": twice}
+    assert client.post("/admin/users", json=body).status_code == 422
+    assert client.post("/admin/teams", json={"name": "   "}).status_code == 422
+    body = {"email": f"blank-{uuid4().hex[:8]}@example.com", "name": "  "}
+    assert client.post("/admin/users", json=body).status_code == 422

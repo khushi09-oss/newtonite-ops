@@ -5,12 +5,12 @@ import base64
 import json
 import re
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from psycopg.types.json import Jsonb
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, StringConstraints, field_validator
 
 from app import db
 from app.auth import current_user
@@ -21,6 +21,15 @@ router = APIRouter()
 STATUSES = ("new", "triaged", "in_progress", "awaiting_approval", "approved", "resolved", "closed")
 OPEN = STATUSES[:5]
 LIST_CAP = 100
+
+
+def Text(max_length: int, min_length: int = 1):
+    """Text from a person: trimmed, then held to a length, so "   " is empty and a pasted novel is
+    refused with 422 instead of failing in the search index."""
+    return Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=min_length, max_length=max_length)
+    ]
+
 
 # Columns the API returns. The tsvector stays in the database.
 COLS = (
@@ -354,7 +363,7 @@ def filters(
             params.append(val)
     if overdue:  # matches the partial index on (team_id, due_at) for open work
         where.append(OVERDUE)
-    key = re.fullmatch(r"\s*(?:([a-z]{2,6})-)?(\d+)\s*", q or "", re.IGNORECASE)
+    key = re.fullmatch(r"\s*(?:([a-z]{2,6}\d*)-)?(\d+)\s*", q or "", re.IGNORECASE)
     # "RSK-1204" finds that item on the (team_id, number) index; "1204" finds it on every team.
     if key:
         where.append("w.number = %s")
@@ -490,8 +499,8 @@ def list_events(
 class CreateItem(BaseModel):
     team_id: UUID
     kind: Literal["incident", "customer_issue", "payment", "compliance", "task"]
-    title: str = Field(min_length=1, max_length=200)
-    description: str = ""
+    title: Text(200)
+    description: Text(10_000, 0) = ""
     priority: int = Field(2, ge=0, le=3)
     due_at: datetime | None = None
 
@@ -520,8 +529,8 @@ class Versioned(BaseModel):
 
 
 class Patch(Versioned):
-    title: str | None = Field(None, min_length=1, max_length=200)
-    description: str | None = None
+    title: Text(200) | None = None
+    description: Text(10_000, 0) | None = None
     priority: int | None = Field(None, ge=0, le=3)
     due_at: datetime | None = None
 
@@ -617,7 +626,7 @@ def assign_item(
 
 class Transition(Versioned):
     to: Literal[STATUSES]
-    note: str | None = None
+    note: Text(2000, 0) | None = None
 
 
 @router.post("/items/{item_id}/transition")
@@ -644,7 +653,7 @@ def transition_item(
 
 
 class Comment(BaseModel):
-    body: str = Field(min_length=1, max_length=5000)
+    body: Text(5000)
 
 
 @router.post("/items/{item_id}/comments", status_code=201)

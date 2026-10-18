@@ -118,3 +118,18 @@ def test_google_sign_in_rate_limited_per_address(client, monkeypatch):
     monkeypatch.setattr(google, "SIGNIN_LIMIT_PER_MINUTE", 2)
     codes = [sign_in(client, token(key=OTHER_KEY)).status_code for _ in range(3)]
     assert codes == [401, 401, 429]
+
+
+def test_the_owner_address_becomes_admin_even_if_an_account_was_made_for_it_first(
+    client, monkeypatch
+):
+    """A visitor can add any address to their team, which makes an account for it. If that address
+    is the owner's, the owner must still become admin when Google proves it is them."""
+    founder = f"founder-{uuid4().hex[:8]}@example.com"
+    monkeypatch.setattr(google, "ADMIN_EMAILS", {founder})
+    with db.pool.connection() as conn:
+        conn.execute(
+            "insert into users (email, name, private) values (%s, 'Placeholder', true)", (founder,)
+        )
+    r = sign_in(client, token(email=founder, sub=f"google-sub-{founder}", name="Founder"))
+    assert r.status_code == 200 and r.json()["is_admin"] is True

@@ -8,12 +8,12 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from psycopg.errors import ForeignKeyViolation, UniqueViolation
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app import db, demo
 from app.auth import current_user
 from app.idempotency import RetryKey, idempotent
-from app.items import OPEN, _jsonb, apply_change, next_team_colour
+from app.items import OPEN, Text, _jsonb, apply_change, next_team_colour
 
 router = APIRouter(prefix="/admin")
 LIST_CAP = 100
@@ -107,9 +107,16 @@ class Membership(BaseModel):
 class Invite(BaseModel):
     # A shape check only. Google's verified email at sign-in is what proves the address is real.
     email: str = Field(pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$", max_length=254)
-    name: str = Field(min_length=1, max_length=120)
+    name: Text(120)
     is_admin: bool = False
     teams: list[Membership] = []
+
+    @field_validator("teams")
+    @classmethod
+    def one_role_per_team(cls, teams: list[Membership]) -> list[Membership]:
+        if len({m.team_id for m in teams}) != len(teams):
+            raise ValueError("each team can be listed once, with one role")
+        return teams
 
 
 @router.post("/users", status_code=201)
@@ -152,7 +159,7 @@ def invite(body: Invite, admin: dict = Depends(require_admin), key: RetryKey = N
 
 
 class UserChange(BaseModel):
-    name: str | None = Field(None, min_length=1, max_length=120)
+    name: Text(120) | None = None
     is_admin: bool | None = None
     active: bool | None = None
 
@@ -206,7 +213,7 @@ def list_teams(admin: dict = Depends(require_admin)):
 
 
 class NewTeam(BaseModel):
-    name: str = Field(min_length=1, max_length=80)
+    name: Text(80)
 
 
 def team_key(conn, name: str) -> str:

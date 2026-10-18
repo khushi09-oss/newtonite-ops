@@ -263,6 +263,7 @@ export default function Item() {
                   placeholder={can("comment") ? "Leave a comment" : "Viewers cannot comment on this item"}
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
+                  maxLength={5000}
                   disabled={!can("comment")}
                   rows={2}
                 />
@@ -346,7 +347,7 @@ export default function Item() {
                   transition(noteFor);
                 }}
               >
-                <textarea autoFocus aria-label="Note" placeholder="Why it is going back" value={note} onChange={(e) => setNote(e.target.value)} rows={2} />
+                <textarea autoFocus aria-label="Note" placeholder="Why it is going back" value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={2000} />
                 <div className="note-actions">
                   <button className="primary small-btn" disabled={!note.trim() || busy}>
                     {TRANSITION_LABEL[noteFor](it.status)} with note
@@ -496,7 +497,7 @@ function EditForm({ it, canPriority, onSave, onCancel, busy }) {
       </label>
       <label className="field">
         Description
-        <textarea value={form.description} onChange={set("description")} rows={4} />
+        <textarea value={form.description} onChange={set("description")} rows={4} maxLength={10000} />
       </label>
       <div className="new-item-row">
         {canPriority && (
