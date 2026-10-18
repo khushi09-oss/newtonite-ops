@@ -10,7 +10,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from psycopg.types.json import Jsonb
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app import db
 from app.auth import current_user
@@ -426,6 +426,15 @@ class Patch(Versioned):
     description: str | None = None
     priority: int | None = Field(None, ge=0, le=3)
     due_at: datetime | None = None
+
+    # Leave a field out to keep it. Only the due date can be cleared, so an explicit null anywhere
+    # else is refused here with 422, instead of reaching a NOT NULL column and answering 500.
+    @field_validator("title", "description", "priority")
+    @classmethod
+    def not_null(cls, value):
+        if value is None:
+            raise ValueError("cannot be null; leave the field out to keep it")
+        return value
 
 
 @router.patch("/items/{item_id}")
