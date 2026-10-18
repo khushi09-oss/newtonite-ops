@@ -3,6 +3,8 @@
 Append-only. Each entry: the situation, the decision, the trade-off accepted. Newest last.
 
 If you read five, read these. The rest refine them as the build went on.
+Entries are never rewritten. When a later decision replaces one, a line under its heading points
+forward.
 
 - **D-01** History lives in an append-only table written in the same transaction as the change.
 - **D-02** Every write checks a version, and a claim is one atomic statement.
@@ -43,6 +45,8 @@ and a silent overwrite. Pessimistic locks were rejected because a browser tab ca
 database lock.
 
 ## D-03 Idempotency keys stored server-side
+
+> Extended by D-34: every write now replays a repeated key, or is listed as harmless to repeat.
 
 **Situation.** A user clicks twice, or a request times out and the client retries, and two
 comments or two items appear.
@@ -119,6 +123,8 @@ seconds and ships no extra code.
 
 ## D-08 A signed, stateless session cookie for dev login
 
+> Superseded by D-15 (sessions are database rows, so they can be revoked) and D-16 (Google sign-in).
+
 **Situation.** Sign-on is out of scope, but every authorization check needs a trusted actor.
 
 **Decision.** `POST /auth/dev-login` accepts a seeded email and sets an HttpOnly, SameSite=Lax
@@ -132,6 +138,8 @@ is fine for a demo where anyone may be anyone; the effort goes into what a user 
 into proving who they are.
 
 ## D-09 One write function that reads the row first, then updates under the version check
+
+> Note: production now runs Postgres 18, which can return old values (`RETURNING OLD`). Local development and the tests run 16, so the read-first design stays.
 
 **Situation.** D-01 and D-02 need every write to produce an honest event (what the field was,
 what it became) and every stale write to come back with the current row. Doing that with a
@@ -189,6 +197,8 @@ retrying forever because a poison row would then hide every row behind it in the
 
 ## D-12 Idempotency stores only successes, under a lock per user and key
 
+> Extended by D-34: the key is honoured on every write that a repeat would change, not only create, move and comment.
+
 **Situation.** Two identical requests can arrive in the same millisecond, and a request can fail
 for a reason the client will fix before retrying with the same key.
 
@@ -218,6 +228,8 @@ at 50 and says so.
 paging inside a bucket; the list page with filters is where to go for more than 50.
 
 ## D-14 The UI is optimistic, and a 409 becomes a sentence instead of an error
+
+> Polling superseded by D-20: with the live stream up, pages poll once a minute, and every 15 seconds only while it is down.
 
 **Situation.** Most clicks succeed, so waiting for the server makes the UI feel slow. But when
 a click loses (someone else claimed it, changed the priority, commented), the user must see
@@ -278,6 +290,8 @@ have.
 
 ## D-17 Admins manage people and teams, and leaving releases work through the normal write path
 
+> Its trade-off is superseded by D-27: team leads now add, change and remove people on their own team.
+
 **Situation.** With real sign-in, someone has to decide who gets in and on which teams. People
 also leave teams and the company while they still own open items.
 
@@ -317,6 +331,8 @@ would replace a design whose guarantees are already tested. A paid plan's per-mi
 would close the gap without code changes.
 
 ## D-19 One deployment, run as a public demo, with the real sign-in still on show
+
+> Partly superseded: a Google visitor now gets an empty, private workspace instead of joining Support and Risk (D-27), and the shared admin cannot see it (D-26).
 
 **Situation.** Reviewers need to use the app without being invited, but they should still see the
 real Google sign-in, and one visitor must not be able to break the demo for everyone else.
@@ -374,6 +390,8 @@ after the eighth failure. Accepted because a job that has failed eight times wit
 needs something fixed first, and retrying it blindly would only fail again.
 
 ## D-22 The dashboard is a few indexed queries, scoped to the caller's teams
+
+> Item keys superseded by D-23: keys count per team, like `RSK-1204`, not one `OPS-` sequence.
 
 **Situation.** The home page should say at a glance what needs me and how my teams' work is
 moving, without a reporting pipeline and without scanning 20,000 items and 150,000 events.
@@ -541,6 +559,8 @@ seconds, or timed out entirely in the test. A test fills the pool, has the datab
 connection, and requires the next requests to succeed within three seconds.
 
 ## D-31 Each team stores its colour, picked when it is created
+
+> Its spread of existing teams was corrected by D-32.
 
 **Situation.** A team's colour was worked out on each screen from a hash of its name, with a
 hard-coded list giving the eight demo teams one colour each. That was a patch for the demo's teams

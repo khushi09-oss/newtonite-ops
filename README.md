@@ -151,6 +151,26 @@ numbers point to the full reasoning in [ENGINEERING_DECISIONS.md](ENGINEERING_DE
   8 teams and 20,000 items.
   *Why:* strangers share it, so it must not drift or fill up (D-19).
 
+## When things fail
+
+What happens in each failure the system was built for, and where the reasoning is. The tests
+that guard these are listed under "Run the tests", and most rows can be tried against the running
+stack.
+
+| Failure | What happens | Why |
+|---|---|---|
+| Two people change the same item | The version check lets one win. The other gets 409 with who changed what; the page rolls back and offers Reload or Retry. | D-02, D-14 |
+| A write is sent twice (a double click, or a retry after a lost answer) | The same key and body replay the first answer; the same key with a different body is 422. Writes that are harmless to repeat are listed in a test. | D-03, D-34 |
+| Bad input (a `null`, a wrong type, an unknown status) | 422 naming the field. A test sends `null` in every field of every write and fails on any 500. | `test_guards.py` |
+| The database is down or waking up | A request waits up to 10 seconds, then gets 503 "The database is not answering". Every write is one transaction, so nothing is half-saved. The next request after it is back works. | D-35 |
+| The database drops idle connections (Neon does) | A dead connection is replaced at once instead of being handed to a request. | D-30 |
+| The worker is killed mid-batch | Its transaction rolls back and the row locks go with it; the next poll picks the rows up again. Handlers are idempotent, so nobody is notified twice. | D-04, D-11 |
+| A notification job keeps failing | Retried after 2, 4, 8 and so on up to 128 seconds. On the eighth failure it stops with its error and waits on the Admin page, where Retry is safe. | D-04, D-21 |
+| Nobody uses the app on Vercel, so no worker runs | Each response drains the outbox; a daily scheduled sweep catches the rest. | D-18 |
+| The live-updates stream drops | The browser reconnects by itself, and pages poll every 15 seconds until it is back. | D-20 |
+| Someone outside a team asks for its item | 404, the same answer as for an id that does not exist. | D-05 |
+| A person is signed out or deactivated elsewhere | Their next request is 401 and their live stream closes. Deactivating someone also releases the work they owned, each release in that item's history. | D-15, D-17, D-20 |
+
 ## Run it
 
 You need Docker with Compose. Python 3 is optional, for the demo script.
