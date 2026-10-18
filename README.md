@@ -68,7 +68,9 @@ numbers point to the full reasoning in [ENGINEERING_DECISIONS.md](ENGINEERING_DE
   *Why:* the first screen should answer "what needs me?", not show a list of everything. Each
   number is one indexed query scoped to your teams (D-22).
 - **Inbox.** The same questions as tabs, each with its count, holding the items themselves.
-  It opens on the first tab with work in it.
+  It opens on the first tab with work in it, and "Show all in Items" lists every match. Each
+  question is defined once on the server, so a tab, its full list and its dashboard tile always
+  agree (D-38).
   *Why:* four small indexed queries are fast at any size, where one query over everything is not
   (D-13).
 - **Notifications.** They are grouped by day, with the item's key on each. "Mark all as read"

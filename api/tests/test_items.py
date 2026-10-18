@@ -10,7 +10,7 @@ from conftest import session_cookie
 from fastapi.testclient import TestClient
 
 from app import db
-from app.items import Conflict, apply_change, list_query
+from app.items import INBOX_VIEWS, Conflict, apply_change, inbox_view, list_query
 from app.main import app
 
 
@@ -323,6 +323,12 @@ def test_list_uses_index(login, team_id):
     sql, params = list_query(user, q="refund")
     plan = explain(sql, params)
     assert "Seq Scan on work_items" not in plan, plan
+    # Each inbox question's "Show all" list stays on an index too.
+    with db.pool.connection() as conn:
+        for view in INBOX_VIEWS:
+            sql, params = list_query(user, view=inbox_view(conn, user, view))
+            plan = explain(sql, params)
+            assert "Seq Scan on work_items" not in plan, (view, plan)
 
 
 def test_search_forgives_a_typo_in_a_title_but_not_an_unrelated_word(client, login, team_id):

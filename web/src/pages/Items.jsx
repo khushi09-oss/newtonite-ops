@@ -5,7 +5,14 @@ import { api, newKey } from "../api";
 import { Icon } from "../icons";
 import { ItemRow, KIND_LABEL, PRIORITY_LABEL, STATUS_LABEL, StatusIcon } from "../ui";
 
-const FILTERS = ["team", "status", "priority", "assignee", "overdue", "q"];
+const FILTERS = ["team", "status", "priority", "assignee", "overdue", "q", "view"];
+// The inbox's questions, which ?view= narrows the list to (items.inbox_views on the server).
+const VIEW_LABEL = {
+  assigned: "Assigned to me",
+  approvals: "Needs my approval",
+  unassigned_urgent: "Urgent and unclaimed",
+  stale: "Gone quiet for three days",
+};
 const STATUSES = Object.keys(STATUS_LABEL);
 const DONE = ["resolved", "closed"];
 // Each group opens on its ten most recent, so every status is in view; more come 25 at a time.
@@ -94,6 +101,17 @@ export default function Items() {
         </div>
       </header>
       {creating && <NewItem me={me} onDone={() => setCreating(false)} />}
+      {VIEW_LABEL[filters.view] && (
+        <div className="view-strip">
+          <span>
+            Inbox view: <strong>{VIEW_LABEL[filters.view]}</strong>
+          </span>
+          <Link to={`/inbox?tab=${filters.view}`}>Back to the inbox</Link>
+          <button className="link" onClick={() => setFilter("view", "")}>
+            Show all items
+          </button>
+        </div>
+      )}
 
       <div className="filter-bar">
         <label className="search">

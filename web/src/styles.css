@@ -1714,6 +1714,20 @@ button.wide {
 .login-wide .login-foot {
   justify-self: center;
 }
+.view-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  margin-bottom: 14px;
+  padding: 9px 14px;
+  border-radius: var(--radius-lg);
+  background: var(--accent-soft);
+  font-size: 13.5px;
+}
+.view-strip span {
+  margin-right: auto;
+}
 .alert-strip {
   display: block;
   margin-bottom: 18px;
