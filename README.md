@@ -32,7 +32,8 @@ The sign-in page offers two ways in.
   teammates by their Google email, and run work through it from new to closed. It is private to
   you and the people you add; even the demo's admin cannot see it.
 
-Everything is cleared every night at 04:00 Singapore time.
+The shared demo data is reset every night at 04:00 Singapore time. A workspace stays while anyone
+on it keeps signing in, and goes 7 days after the last sign-in (D-41).
 
 The demo runs with `DEMO_MODE=true`. Without it, the same code is invite-only: Google sign-in
 admits only people an admin has invited, and there is no passwordless sign-in.
@@ -151,8 +152,10 @@ numbers point to the full reasoning in [ENGINEERING_DECISIONS.md](ENGINEERING_DE
   and a daily job sweeps the rest.
   *Why:* Vercel runs functions, not long-lived processes (D-18).
 - **The demo resets every night** at 04:00 Singapore time, back to the same seed of 40 people,
-  8 teams and 20,000 items.
-  *Why:* strangers share it, so it must not drift or fill up (D-19).
+  8 teams and 20,000 items. Visitors' workspaces in use are kept, with their history; one where
+  nobody has signed in for 7 days is deleted.
+  *Why:* strangers share the demo data, so it must not drift or fill up (D-19). A workspace is one
+  person's own work, so it lasts as long as they use it (D-41).
 
 ## When things fail
 
@@ -385,7 +388,7 @@ Set in `.env` locally, or as environment variables wherever the API runs.
 | `ALLOWED_ORIGINS` | `http://localhost:5173` | The site's own URL. Writes from any other page are refused. |
 | `WRITE_LIMIT_PER_MINUTE` | `300` | Writes per user per minute before 429. |
 | `DRAIN_OUTBOX_IN_REQUESTS` | not set | `true` on Vercel, where no worker process runs. |
-| `DEMO_MODE` | not set | `true` only for a public demo: any Google account gets its own private workspace, demo accounts are protected, data resets nightly. |
+| `DEMO_MODE` | not set | `true` only for a public demo: any Google account gets its own private workspace, demo accounts are protected, the shared data resets nightly, workspaces in use are kept. |
 | `CRON_SECRET` | not set | A random string; the daily sweep must present it. |
 | `DB_POOL_MAX` | `20` | Connections per API instance. `5` on Vercel. |
 | `GOOGLE_CLIENT_ID` | empty, so Google sign-in is hidden | The OAuth client ID from Google Cloud. |

@@ -237,7 +237,7 @@ export function DemoBanner({ workspace }) {
   return (
     <div className="demo-banner" role="note">
       {workspace
-        ? "Your workspace is private to you and the people you add. Like the rest of this demo, it is cleared every night at 04:00 Singapore time."
+        ? "Your workspace is private to you and the people you add. It is kept while anyone on it signs in, and deleted after 7 days with no sign-in."
         : "This is a public demo. The people and items are made up, everyone shares them, and they reset every night at 04:00 Singapore time."}
     </div>
   );

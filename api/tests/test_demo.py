@@ -300,6 +300,146 @@ def test_demo_reset_restores_a_clean_seed(client):
         admin.close()
 
 
+def workspace(conn, tag: str, signed_in: str) -> dict:
+    """A visitor's private workspace as the app leaves it: a lead last signed in `signed_in` ago, a
+    teammate who never signed in, a viewer who only follows, an item with two changes, a watcher, a notification, a pending
+    job and the admin log entry for the team."""
+    lead, mate, viewer = (
+        conn.execute(
+            "insert into users (email, name, private) values (%s, %s, true) returning id",
+            (f"{who}-{tag}@example.com", who),
+        ).fetchone()["id"]
+        for who in ("lead", "mate", "viewer")
+    )
+    conn.execute(
+        "insert into sessions (user_id, created_at, expires_at)"
+        " values (%s, now() - %s::interval, now() - %s::interval + interval '7 days')",
+        (lead, signed_in, signed_in),
+    )
+    team = conn.execute(
+        "insert into teams (name, key, private, color, next_number) values ('Mine', %s, true, 0, 1)"
+        " returning id",
+        (f"W{tag.upper()}",),
+    ).fetchone()["id"]
+    conn.execute(
+        "insert into team_members values (%s, %s, 'lead'), (%s, %s, 'member'), (%s, %s, 'viewer')",
+        (team, lead, team, mate, team, viewer),
+    )
+    item = conn.execute(
+        "insert into work_items (team_id, kind, title, reporter_id, assignee_id, number, version)"
+        " values (%s, 'task', 'Kept', %s, %s, 1, 2) returning id",
+        (team, lead, mate),
+    ).fetchone()["id"]
+    events = [
+        conn.execute(
+            "insert into work_item_events (item_id, seq, actor_id, kind) values (%s, %s, %s, %s)"
+            " returning id",
+            (item, seq, actor, kind),
+        ).fetchone()["id"]
+        for seq, actor, kind in ((1, lead, "created"), (2, mate, "claimed"))
+    ]
+    conn.execute("insert into watchers values (%s, %s)", (item, lead))
+    conn.execute("insert into notifications (user_id, event_id) values (%s, %s)", (lead, events[1]))
+    conn.execute(
+        "insert into outbox (kind, payload) values ('item_event', jsonb_build_object('item_id', %s::text))",
+        (item,),
+    )
+    conn.execute(
+        "insert into admin_events (actor_id, kind, target)"
+        " values (%s, 'team_created', jsonb_build_object('team_id', %s::text))",
+        (lead, team),
+    )
+    return {"lead": lead, "mate": mate, "viewer": viewer, "team": team, "item": item}
+
+
+def test_the_nightly_reset_keeps_workspaces_in_use_and_clears_the_rest(client):
+    name = "ops_demo_keep"
+    admin = psycopg.connect(db.DATABASE_URL, autocommit=True)
+    try:
+        admin.execute(f"drop database if exists {name}")
+        admin.execute(f"create database {name}")
+        url = db.DATABASE_URL.rsplit("/", 1)[0] + f"/{name}"
+        with ConnectionPool(url, min_size=1, max_size=2, kwargs={"row_factory": dict_row}) as fresh:
+            db.migrate(fresh)
+            demo.reset(fresh)
+            with fresh.connection() as conn:
+                used = workspace(conn, "a", "6 days")
+                gone = workspace(conn, "b", "8 days")
+                conn.execute("insert into users (email, name) values ('junk@example.com', 'Junk')")
+            assert demo.reset(fresh) == {"users": 3, "teams": 1, "items": 1}
+            assert demo.reset(fresh) == {"users": 3, "teams": 1, "items": 1}  # and the night after
+            with fresh.connection() as conn:
+                # The next change after a reset takes fresh ids, never one a kept row still holds.
+                for table, cols, vals in (
+                    (
+                        "work_item_events",
+                        "item_id, seq, actor_id, kind",
+                        "%(i)s, 3, %(l)s, 'commented'",
+                    ),
+                    ("admin_events", "actor_id, kind, target", "%(l)s, 'team_colour_set', '{}'"),
+                    ("outbox", "kind, payload", "'item_event', '{}'"),
+                ):
+                    conn.execute(
+                        f"insert into {table} ({cols}) values ({vals})",
+                        {"i": used["item"], "l": used["lead"]},
+                    )
+                conn.execute("delete from outbox where payload = '{}'")
+                conn.execute("update work_items set version = 3 where id = %s", (used["item"],))
+
+                def ids(q):
+                    return {r["id"] for r in conn.execute(q)}
+
+                assert ids("select id from users where private") == {
+                    used["lead"],
+                    used["mate"],
+                    used["viewer"],
+                }
+                assert ids("select id from teams where private") == {used["team"]}
+                kept = conn.execute(
+                    "select (select count(*) from work_items where id = %(i)s and version = 3"
+                    "   and assignee_id = %(m)s) as item,"
+                    " (select count(*) from work_item_events where item_id = %(i)s) as events,"
+                    " (select count(*) from team_members where team_id = %(t)s) as members,"
+                    " (select count(*) from watchers where item_id = %(i)s) as watchers,"
+                    " (select count(*) from notifications where user_id = %(l)s) as notifications,"
+                    " (select count(*) from outbox where payload->>'item_id' = %(i)s::text) as jobs,"
+                    " (select count(*) from sessions where user_id = %(l)s) as sessions,"
+                    " (select count(*) from admin_events where actor_id = %(l)s) as logged,"
+                    " (select count(*) from work_items where team_id = %(g)s) as gone_items,"
+                    " (select count(*) from users) as users, (select count(*) from teams) as teams,"
+                    " (select count(*) from work_items) as items,"
+                    " (select count(*) from users where email = 'junk@example.com') as junk,"
+                    " (select count(*) from work_items w where version <>"
+                    "   (select count(*) from work_item_events e where e.item_id = w.id)) as broken",
+                    {
+                        "i": used["item"],
+                        "m": used["mate"],
+                        "t": used["team"],
+                        "l": used["lead"],
+                        "g": gone["team"],
+                    },
+                ).fetchone()
+        assert kept == {
+            "item": 1,
+            "events": 3,
+            "members": 3,
+            "watchers": 1,
+            "notifications": 1,
+            "jobs": 1,
+            "sessions": 1,
+            "logged": 2,  # the kept entry, and the one made after the reset
+            "gone_items": 0,
+            "users": 43,
+            "teams": 9,
+            "items": 20001,
+            "junk": 0,
+            "broken": 0,
+        }
+    finally:
+        admin.execute(f"drop database if exists {name} with (force)")
+        admin.close()
+
+
 def test_respreading_colours_keeps_public_teams_apart_from_private_ones():
     """Migration 011 on the live site's shape: the eight demo teams plus a visitor's private team
     whose key falls between theirs. The public teams must end with eight different colours."""

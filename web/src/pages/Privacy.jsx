@@ -25,8 +25,10 @@ export default function Privacy() {
 
         <h2>How long we keep it</h2>
         <p>
-          Everything is deleted every night at 04:00 Singapore time, when the demo resets. That includes your account,
-          your sessions and anything you wrote.
+          The demo resets every night at 04:00 Singapore time. Your workspace is kept through it while you, or anyone on
+          a team with you, has signed in within the last 7 days. After 7 days with no sign-in, the next reset deletes
+          the workspace, the accounts on it, their sessions and everything written there. Everything else, the shared
+          demo data included, is deleted every night.
         </p>
 
         <h2>Who sees it</h2>
@@ -42,7 +44,7 @@ export default function Privacy() {
         <p>
           Open an issue at{" "}
           <a href="https://github.com/khushi09-oss/newtonite-ops/issues">github.com/khushi09-oss/newtonite-ops</a>, or
-          wait for the nightly reset, which removes everything.
+          stop signing in: 7 days after the last sign-in on your workspace, the nightly reset removes all of it.
         </p>
 
         <Link to="/login">Back to sign-in</Link>

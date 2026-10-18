@@ -12,13 +12,13 @@ adding it would take. The reasoning behind what *was* built is in
   are hidden from them (D-26).
   A real deployment leaves `DEMO_MODE` and `DEV_LOGIN` off, and then only invited Google accounts
   get in.
-- **Everything is deleted every night at 04:00 Singapore time.** This includes history, visitors'
-  workspaces and their accounts.
-  Why: strangers share the demo. A nightly wipe keeps the seed clean, stops data from piling up,
-  and keeps the privacy page true without a retention policy per row. It is also the only time
-  history is ever deleted: outside demo mode it is never removed.
-  To keep workspaces longer, the reset would clear only the demo's own teams. Workspaces would
-  then need their own expiry.
+- **The shared demo data is deleted every night at 04:00 Singapore time,** history included.
+  A visitor's workspace is kept while anyone on it has signed in within 7 days, and deleted at the
+  first reset after that, with its accounts. There is no button to delete a workspace sooner.
+  Why: strangers share the demo, so a nightly wipe keeps the seed clean and stops data piling up,
+  while a workspace is one person's work and should last while they use it (D-19, D-41). It is
+  the only time history is ever deleted: outside demo mode it is never removed. A session lasts
+  7 days, so anyone still using a workspace has signed in within that time.
 - **The shared admin card can learn that an email address has signed in.** Inviting that
   address answers "already invited".
   Why: telling an admin that an address is taken is normal. On the demo the admin is shared, so
