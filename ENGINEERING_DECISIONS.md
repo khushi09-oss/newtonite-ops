@@ -787,3 +787,21 @@ The versions are the ones the full test suite last passed on.
 **Trade-off.** Nothing updates by itself, including security fixes. An update is a deliberate
 change: upgrade one package in the lock, rebuild, run the gate. That is the point: what runs is
 what was tested.
+
+## D-44 Input is checked once, by one type, and the demo's sign-in cards open only demo people
+
+**Situation.** A review found inputs checked one route at a time. A team named "   " was saved
+with an empty name. A description had no size limit, and one big enough failed inside the search
+index as a 500. An invite listing one team twice failed on a unique key, also a 500. Search by key
+missed keys with digits (`PAY2-12`). On the demo, the password-free route signed in any public
+account, including a real person the shared admin had invited. And an account made earlier for
+the owner's address (say, a visitor adding it to a team) stopped the owner becoming admin.
+
+**Decision.** One `Text(max)` type trims and limits every name, title, description, comment and
+note, and the forms use the same limits. An invite lists each team once. The key pattern allows
+digits. On the demo, password-free sign-in opens only `@newtonite.dev` accounts. Google sign-in
+with an `ADMIN_EMAILS` address makes that account admin, whether or not it existed before.
+
+**Trade-off.** Trimming changes what is stored (" Refund " becomes "Refund"), which is what
+people mean. A limit can refuse a real but very long description; 10,000 characters is several
+pages, and longer material belongs in a linked document.

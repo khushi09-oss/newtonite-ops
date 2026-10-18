@@ -17,13 +17,13 @@ from app import db, demo
 from app.admin import record, release_if_viewer, release_open_items, team_key
 from app.auth import current_user
 from app.idempotency import RetryKey, idempotent
-from app.items import TEAM_COLOURS, next_team_colour
+from app.items import TEAM_COLOURS, Text, next_team_colour
 
 router = APIRouter()
 
 
 class NewTeam(BaseModel):
-    name: str = Field(min_length=1, max_length=80)
+    name: Text(80)
 
 
 @router.post("/teams", status_code=201)
@@ -79,7 +79,7 @@ def lead_of(conn, user: dict, team_id: UUID) -> dict:
 class Member(BaseModel):
     # A shape check only. Google's verified email at sign-in is what proves the address is real.
     email: str = Field(pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$", max_length=254)
-    name: str | None = Field(None, min_length=1, max_length=120)
+    name: Text(120) | None = None
     role: Literal["viewer", "member", "lead"] = "member"
 
 

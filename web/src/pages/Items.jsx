@@ -305,6 +305,7 @@ function NewItem({ me, onDone }) {
           value={form.description}
           onChange={set("description")}
           rows={4}
+          maxLength={10000}
         />
         <div className="modal-fields">
           <label>

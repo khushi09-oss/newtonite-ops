@@ -86,6 +86,14 @@ def google_sign_in(body: GoogleSignIn, request: Request, response: Response):
             ).fetchone()
         elif user is None and demo.DEMO_MODE:  # a public demo lets any verified Google account in
             user = demo.add_visitor(conn, email, claims.get("name") or email.split("@")[0], sub)
+        elif user is not None and email in ADMIN_EMAILS and not user["is_admin"]:
+            # Google has just proved this is the owner's address. An account made for it earlier,
+            # say by a visitor adding it to their team, must not stop the owner being admin.
+            user = conn.execute(
+                "update users set is_admin = true where id = %s"
+                " returning id, email, name, is_admin, google_sub, deactivated_at",
+                (user["id"],),
+            ).fetchone()
         if user is None or user["deactivated_at"] is not None:
             raise HTTPException(403, f"{email} has not been invited. Ask an admin to invite you.")
         if user["google_sub"] is not None and user["google_sub"] != sub:

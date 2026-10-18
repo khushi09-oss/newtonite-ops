@@ -60,8 +60,9 @@ adding it would take. The reasoning behind what *was* built is in
   Why: in a real company, who gets access is an admin's call. Who is on a team is the lead's.
 - **The password-free sign-in exists at all.** It covers local development, the tests and the
   demo's role cards.
-  Why: it lets anyone try a role in one click. It is off unless `DEV_LOGIN=true`, and it refuses
-  any real person's account (D-26), so it can never sign in as a visitor.
+  Why: it lets anyone try a role in one click. It is off unless `DEV_LOGIN=true`. On the demo it
+  opens only the shared `@newtonite.dev` people, so it can never sign in as a visitor or as
+  someone the shared admin invited (D-26, D-44).
 - **Google sign-in works on the production URL and localhost only.** Preview deploys get a new
   URL each time, and Google only accepts addresses registered in advance.
 - **The sign-in rate limit trusts `X-Forwarded-For`.** That is safe behind Vercel, which sets the
@@ -100,6 +101,10 @@ adding it would take. The reasoning behind what *was* built is in
 
 ## Data and lists
 
+- **Text has length limits:** titles 200 characters, descriptions 10,000, comments 5,000 and
+  notes 2,000. Everything is trimmed, so a title of spaces is refused.
+  Why: history is append-only, so whatever is written stays forever, and the search index has a
+  size ceiling of its own. The forms stop at the same limits, so nobody types past one.
 - **No attachments, bulk edits or soft delete.**
   Why: none of them is needed to show the hard parts of the brief: conflicts, retries, history
   and authorization. Each would go through `apply_change()` like every other write.

@@ -90,11 +90,18 @@ def dev_login(body: Login, response: Response):
     Never as a private account, which belongs to a real person who signed in with Google."""
     if not DEV_LOGIN:
         raise HTTPException(404, "Not Found")
+    from app import demo  # demo imports this module
+
+    email = body.email.strip().lower()
+    # On the public demo only the shared demo people: anyone else there, even someone the shared
+    # admin invited, is a real person whose account must not open without their Google sign-in.
+    if demo.DEMO_MODE and not demo.is_demo_account(email):
+        raise HTTPException(404, "no seeded user with that email")
     with db.pool.connection() as conn:
         user = conn.execute(
             f"select {USER_COLS} from users u"
             " where u.email = %s and u.deactivated_at is null and not u.private",
-            (body.email.strip().lower(),),
+            (email,),
         ).fetchone()
         if user is None:
             raise HTTPException(404, "no seeded user with that email")

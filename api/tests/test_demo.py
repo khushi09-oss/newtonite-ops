@@ -571,3 +571,20 @@ def test_a_team_colour_is_picked_by_its_lead_or_an_admin_and_every_screen_shows_
         assert log["kind"] == "team_colour_set" and log["target"]["before"] == risk["color"]
     finally:
         client.patch(f"/teams/{risk['id']}", json={"color": risk["color"]})
+
+
+def test_on_the_demo_password_free_sign_in_opens_only_the_shared_demo_people(
+    client, login, demo_on
+):
+    """Someone the shared admin invites is a real person. On the demo their account opens only with
+    their own Google sign-in, never from the sign-in cards' password-free route."""
+    login(ADMIN)
+    email = f"real-{uuid4().hex[:8]}@example.com"
+    assert client.post("/admin/users", json={"email": email, "name": "Real"}).status_code == 201
+    client.cookies.clear()
+    assert client.post("/auth/dev-login", json={"email": email}).status_code == 404
+    assert client.post("/auth/dev-login", json={"email": ADMIN}).status_code == 200
+    assert client.post("/teams", json={"name": "  "}).status_code in (
+        403,
+        422,
+    )  # never a blank team

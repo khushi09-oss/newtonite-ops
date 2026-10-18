@@ -392,7 +392,7 @@ def test_item_says_whether_i_watch_it(client, login):
 def test_a_claim_starts_new_work_but_never_moves_an_item_out_of_approval(client, login, team_id):
     """A claim takes ownership. It moves the status only where the workflow starts (new, triaged),
     and an item waiting for approval or already approved stays where it is, request and all."""
-    risk = team_id("Risk")
+    risk = str(team_id("Risk"))
 
     def claim(item, who):
         login(who)
@@ -435,3 +435,34 @@ def test_a_claim_starts_new_work_but_never_moves_an_item_out_of_approval(client,
     login(dev)
     triaged = move(new_item(client, risk), dev, "/transition", {"to": "triaged"})
     assert claim(triaged, dev)["status"] == "in_progress"
+
+
+def test_text_from_people_is_trimmed_and_held_to_a_length(client, login, team_id):
+    login("dev.mehta@newtonite.dev")
+    risk = str(team_id("Risk"))
+
+    def create(**body):
+        return client.post(
+            "/items",
+            json={"team_id": risk, "kind": "task", **body},
+            headers={"Idempotency-Key": str(uuid4())},
+        )
+
+    assert create(title="   ").status_code == 422  # blank once trimmed
+    assert create(title="Fine", description="x" * 10_001).status_code == 422
+    made = create(title="  Spaced out  ")
+    assert made.status_code == 201 and made.json()["title"] == "Spaced out"
+    item = made.json()
+    assert client.post(f"/items/{item['id']}/comments", json={"body": "  "}).status_code == 422
+    r = client.patch(f"/items/{item['id']}", json={"version": item["version"], "title": " "})
+    assert r.status_code == 422
+
+
+def test_a_key_with_digits_in_its_code_is_found_by_search(client, login):
+    login("ava.okafor@newtonite.dev")
+    name = f"Zephyr {uuid4().hex[:8]}"
+    teams = [client.post("/admin/teams", json={"name": f"{name} {n}"}).json() for n in range(2)]
+    second = next(t for t in teams if any(c.isdigit() for c in t["key"]))  # like ZEP2
+    item = new_item(client, second["id"], title="Found by its key")
+    found = client.get("/items", params={"q": f"{second['key']}-{item['number']}"}).json()
+    assert [i["id"] for i in found["items"]] == [item["id"]]
