@@ -98,8 +98,10 @@ numbers point to the full reasoning in [ENGINEERING_DECISIONS.md](ENGINEERING_DE
 - **Conflicts.** Every change carries the version it was based on. If someone changed the item
   first, your change is rolled back and a strip says who changed what, with Reload and Retry.
   *Why:* silently overwriting someone's work is the bug this brief is about (D-02, D-10, D-14).
-- **Safe retries.** Every create, move and comment carries an idempotency key. A double click or
-  a network retry returns the first answer instead of doing the work twice.
+- **Safe retries.** Every write carries an idempotency key. Sent again with the same key (a double
+  click, or a retry after a lost answer), it returns the first answer instead of running twice or
+  reporting a conflict with yourself. The few writes that are harmless to repeat, like watching an
+  item, are listed with their reason, and a test fails on any new write that is neither.
   *Why:* operational work is often entered under pressure on bad connections (D-03, D-12).
 - **The item page.** A Next step card says where the item stands and gives one main button for
   the move that takes it forward. A Details card lists the facts, and the activity feed sets

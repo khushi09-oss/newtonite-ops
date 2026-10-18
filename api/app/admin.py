@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from app import db, demo
 from app.auth import current_user
+from app.idempotency import RetryKey, idempotent
 from app.items import OPEN, _jsonb, apply_change, next_team_colour
 
 router = APIRouter(prefix="/admin")
@@ -103,11 +104,12 @@ class Invite(BaseModel):
 
 
 @router.post("/users", status_code=201)
-def invite(body: Invite, admin: dict = Depends(require_admin)):
+def invite(body: Invite, admin: dict = Depends(require_admin), key: RetryKey = None):
     """Create a person who can sign in with Google using this email. Nothing is sent: the admin
     tells them, and they sign in with the button."""
     email = body.email.strip().lower()
-    with db.pool.connection() as conn, conn.transaction():
+
+    def run():
         try:
             uid = conn.execute(
                 "insert into users (email, name, is_admin) values (%s, %s, %s) returning id",
@@ -136,6 +138,9 @@ def invite(body: Invite, admin: dict = Depends(require_admin)):
         )
         return conn.execute(f"{USER_VIEW} where u.id = %s", (uid,)).fetchone()
 
+    with db.pool.connection() as conn, conn.transaction():
+        return idempotent(conn, admin, key, "invite", body, run, status=201)
+
 
 class UserChange(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=120)
@@ -144,10 +149,13 @@ class UserChange(BaseModel):
 
 
 @router.patch("/users/{user_id}")
-def change_user(user_id: UUID, body: UserChange, admin: dict = Depends(require_admin)):
+def change_user(
+    user_id: UUID, body: UserChange, admin: dict = Depends(require_admin), key: RetryKey = None
+):
     if user_id == admin["id"] and (body.is_admin is False or body.active is False):
         raise HTTPException(422, "You cannot remove your own admin access or deactivate yourself")
-    with db.pool.connection() as conn, conn.transaction():
+
+    def run():
         demo.guard(conn, user_id)
         require_public(conn, user_id=user_id)
         if conn.execute("select 1 from users where id = %s", (user_id,)).fetchone() is None:
@@ -170,6 +178,9 @@ def change_user(user_id: UUID, body: UserChange, admin: dict = Depends(require_a
             conn.execute("update users set deactivated_at = null where id = %s", (user_id,))
         record(conn, admin, "user_changed", user_id=user_id, **body.model_dump(exclude_none=True))
         return conn.execute(f"{USER_VIEW} where u.id = %s", (user_id,)).fetchone()
+
+    with db.pool.connection() as conn, conn.transaction():
+        return idempotent(conn, admin, key, f"change-user:{user_id}", body, run)
 
 
 @router.get("/teams")
@@ -203,9 +214,10 @@ def team_key(conn, name: str) -> str:
 
 
 @router.post("/teams", status_code=201)
-def create_team(body: NewTeam, admin: dict = Depends(require_admin)):
+def create_team(body: NewTeam, admin: dict = Depends(require_admin), key: RetryKey = None):
     name = body.name.strip()
-    with db.pool.connection() as conn, conn.transaction():
+
+    def run():
         try:
             team = conn.execute(
                 "insert into teams (name, key, color) values (%s, %s, %s) returning id, name, key, color",
@@ -219,6 +231,9 @@ def create_team(body: NewTeam, admin: dict = Depends(require_admin)):
             raise HTTPException(409, f"A team called {name} already exists")
         record(conn, admin, "team_created", team_id=team["id"], name=team["name"])
         return {**team, "members": 0}
+
+    with db.pool.connection() as conn, conn.transaction():
+        return idempotent(conn, admin, key, "create-team", body, run, status=201)
 
 
 @router.get("/teams/{team_id}/members")
@@ -240,9 +255,16 @@ class RoleChange(BaseModel):
 
 
 @router.put("/teams/{team_id}/members/{user_id}")
-def set_role(team_id: UUID, user_id: UUID, body: RoleChange, admin: dict = Depends(require_admin)):
+def set_role(
+    team_id: UUID,
+    user_id: UUID,
+    body: RoleChange,
+    admin: dict = Depends(require_admin),
+    key: RetryKey = None,
+):
     """Add someone to a team, or change their role on it."""
-    with db.pool.connection() as conn, conn.transaction():
+
+    def run():
         demo.guard(conn, user_id)
         require_public(conn, team_id, user_id)
         before = conn.execute(
@@ -266,14 +288,20 @@ def set_role(team_id: UUID, user_id: UUID, body: RoleChange, admin: dict = Depen
             before=before["role"] if before else None,
             after=body.role,
         )
-    return {"team_id": team_id, "user_id": user_id, "role": body.role}
+        return {"team_id": team_id, "user_id": user_id, "role": body.role}
+
+    with db.pool.connection() as conn, conn.transaction():
+        return idempotent(conn, admin, key, f"set-role:{team_id}:{user_id}", body, run)
 
 
 @router.delete("/teams/{team_id}/members/{user_id}")
-def remove_member(team_id: UUID, user_id: UUID, admin: dict = Depends(require_admin)):
+def remove_member(
+    team_id: UUID, user_id: UUID, admin: dict = Depends(require_admin), key: RetryKey = None
+):
     """Take someone off a team. Their open items on it are released through apply_change, so each
     release is in the item's history and nothing stays owned by someone who can no longer see it."""
-    with db.pool.connection() as conn, conn.transaction():
+
+    def run():
         demo.guard(conn, user_id)
         require_public(conn, team_id, user_id)
         gone = conn.execute(
@@ -294,7 +322,10 @@ def remove_member(team_id: UUID, user_id: UUID, admin: dict = Depends(require_ad
             role=gone["role"],
             released=held,
         )
-    return {"released": len(held)}
+        return {"released": len(held)}
+
+    with db.pool.connection() as conn, conn.transaction():
+        return idempotent(conn, admin, key, f"remove-member:{team_id}:{user_id}", None, run)
 
 
 @router.get("/events")
@@ -348,10 +379,11 @@ def list_jobs(
 
 
 @router.post("/jobs/{job_id}/retry")
-def retry_job(job_id: int, admin: dict = Depends(require_admin)):
+def retry_job(job_id: int, admin: dict = Depends(require_admin), key: RetryKey = None):
     """Give a dead job a fresh set of attempts. One conditional update, so two admins retrying at
     once cannot both succeed; the second gets 409. Safe because every handler is idempotent."""
-    with db.pool.connection() as conn, conn.transaction():
+
+    def run():
         row = conn.execute(
             "update outbox set status = 'pending', attempts = 0, next_attempt_at = now()"
             " where id = %s and status = 'dead' returning id, kind, last_error",
@@ -364,4 +396,7 @@ def retry_job(job_id: int, admin: dict = Depends(require_admin)):
         record(
             conn, admin, "job_retried", job_id=job_id, job_kind=row["kind"], error=row["last_error"]
         )
-    return {"id": job_id, "status": "pending"}
+        return {"id": job_id, "status": "pending"}
+
+    with db.pool.connection() as conn, conn.transaction():
+        return idempotent(conn, admin, key, f"retry-job:{job_id}", None, run)

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom";
-import { api } from "../api";
+import { api, useRetryKey } from "../api";
 import { Icon } from "../icons";
 import { Avatar, teamColor } from "../ui";
 
@@ -17,9 +17,11 @@ const ROLE_HINT = {
 export function NewTeamForm({ onCreated, autoFocus }) {
   const qc = useQueryClient();
   const [name, setName] = useState("");
+  const retry = useRetryKey();
   const create = useMutation({
-    mutationFn: () => api("/teams", { method: "POST", body: { name: name.trim() } }),
+    mutationFn: () => api("/teams", { method: "POST", key: retry.key(), body: { name: name.trim() } }),
     onSuccess: (team) => {
+      retry.done();
       setName("");
       qc.invalidateQueries({ queryKey: ["me"] });
       onCreated?.(team);

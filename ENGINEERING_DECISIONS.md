@@ -591,3 +591,23 @@ main button. An unowned item waiting for approval offers Approve first, and Clai
 **Trade-off.** A claim on a new item still skips triage, on purpose: the person claiming it has
 looked at it. A test claims at every open status and requires that nothing leaves approval.
 
+## D-34 Every write either replays a repeat or is harmless to repeat
+
+**Situation.** Only creating an item, moving it and commenting honoured `Idempotency-Key`. Claim,
+release, assign, edit and the admin and team routes ignored it. A claim that succeeded but whose
+answer was lost came back on retry as a 409, and the page said "Changed by you: claimed. Your change
+was not saved", which was wrong. Retried invites and new teams answered "already exists". An
+external review found the claim case. The README promised every move was covered.
+
+**Decision.** Every write that a repeat would change, or answer differently, now runs through
+`idempotent()`: on an item, edit, claim, release and assign; for a team, creating it and taking
+someone off; for admins, inviting, changing a person, creating a team, setting a role, removing a
+member and retrying a job. The few writes whose repeat leaves the same state and answer (watch,
+unwatch, marking read, a lead's role upsert, sign-in and sign-out) are listed with that reason in
+`test_guards.py`. A test scans every write route and fails on one that is neither. The web client
+gives every write a key; the forms that create something keep theirs until they succeed.
+
+**Trade-off.** One small stored row per write, kept 24 hours. Reusing a form's key after editing the
+form, when the first send did land, answers 422 instead of running the new request. That is the
+rule D-03 chose: one key, one request.
+

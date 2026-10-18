@@ -215,3 +215,83 @@ def test_null_in_any_field_of_any_write_is_refused_not_a_500(client, login, team
             if r.status_code >= 500:
                 crashed.append(f"{name} {field}=null -> {r.status_code}")
     assert crashed == []
+
+
+# Writes that are safe to send twice without a key: repeating them leaves the same state and answer.
+SAFE_TO_REPEAT = {
+    "watch": "watching twice is still watching",
+    "unwatch": "not watching twice is still not watching",
+    "mark_read": "read twice is still read",
+    "mark_all_read": "marks up to the same id; a repeat marks nothing more",
+    "add_member": "an upsert: the same email and role leave the same membership",
+    "logout": "ends the same session",
+    "dev_login": "signs in again, a new session either way",
+    "google_sign_in": "signs in again, a new session either way",
+}
+
+
+def test_every_write_route_is_safe_to_retry():
+    """A client unsure whether its request landed sends it again. Every POST, PUT, PATCH and DELETE
+    route either replays the first answer for the same Idempotency-Key, or is listed above with the
+    reason a repeat is harmless. A new route that is neither fails here."""
+    unsafe = []
+    for path in sorted((ROOT / "app").glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for fn in ast.walk(tree):
+            if not isinstance(fn, ast.FunctionDef):
+                continue
+            writes = any(
+                isinstance(d, ast.Call)
+                and isinstance(d.func, ast.Attribute)
+                and d.func.attr in ("post", "put", "patch", "delete")
+                for d in fn.decorator_list
+            )
+            if not writes or fn.name in SAFE_TO_REPEAT:
+                continue
+            calls = {
+                n.func.id
+                for n in ast.walk(fn)
+                if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+            }
+            if "idempotent" not in calls:
+                unsafe.append(f"{path.name}:{fn.name}")
+    assert unsafe == []
+
+
+def test_a_retried_write_replays_its_first_answer_instead_of_failing(client, login, team_id):
+    """The case the brief names: the first request landed but its answer was lost, so the client
+    sends it again with the same key. Claim, edit, release and an admin invite each replay."""
+    login("dev.mehta@newtonite.dev")
+    item = client.post(
+        "/items",
+        json={"team_id": str(team_id("Risk")), "kind": "task", "title": "Retry me"},
+        headers={"Idempotency-Key": str(uuid4())},
+    ).json()
+
+    def twice(method, url, body):
+        key = {"Idempotency-Key": str(uuid4())}
+        first = client.request(method, url, json=body, headers=key)
+        again = client.request(method, url, json=body, headers=key)
+        assert first.status_code < 300, first.text
+        assert (again.status_code, again.json()) == (first.status_code, first.json())
+        return first.json()
+
+    claimed = twice("POST", f"/items/{item['id']}/claim", {"version": item["version"]})
+    edited = twice(
+        "PATCH", f"/items/{item['id']}", {"version": claimed["version"], "title": "Done"}
+    )
+    twice("POST", f"/items/{item['id']}/release", {"version": edited["version"]})
+    with db.pool.connection() as conn:
+        kinds = [
+            r["kind"]
+            for r in conn.execute(
+                "select kind from work_item_events where item_id = %s order by seq", (item["id"],)
+            )
+        ]
+    assert kinds == ["created", "claimed", "edited", "released"]  # each ran once
+
+    login("ava.okafor@newtonite.dev")
+    invited = twice(
+        "POST", "/admin/users", {"email": f"r-{uuid4().hex[:8]}@example.com", "name": "R"}
+    )
+    assert invited["email"].startswith("r-")

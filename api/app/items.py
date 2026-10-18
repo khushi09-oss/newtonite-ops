@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from app import db
 from app.auth import current_user
-from app.idempotency import idempotent
+from app.idempotency import RetryKey, idempotent
 
 router = APIRouter()
 
@@ -443,11 +443,14 @@ class Patch(Versioned):
 
 
 @router.patch("/items/{item_id}")
-def patch_item(item_id: UUID, body: Patch, user: dict = Depends(current_user)):
+def patch_item(
+    item_id: UUID, body: Patch, user: dict = Depends(current_user), key: RetryKey = None
+):
     changes = body.model_dump(exclude_unset=True, exclude={"version"})
     if not changes:
         raise HTTPException(422, "nothing to change")
-    with db.pool.connection() as conn, conn.transaction():
+
+    def run():
         if "priority" in changes:
             _may(conn, user, item_id, "priority", body.version)
         if set(changes) - {"priority"}:
@@ -455,10 +458,15 @@ def patch_item(item_id: UUID, body: Patch, user: dict = Depends(current_user)):
         apply_change(conn, user, "edited", changes, item_id, body.version)
         return _respond(conn, user, item_id)
 
+    with db.pool.connection() as conn, conn.transaction():
+        return idempotent(conn, user, key, f"edit:{item_id}", body, run)
+
 
 @router.post("/items/{item_id}/claim")
-def claim_item(item_id: UUID, body: Versioned, user: dict = Depends(current_user)):
-    with db.pool.connection() as conn, conn.transaction():
+def claim_item(
+    item_id: UUID, body: Versioned, user: dict = Depends(current_user), key: RetryKey = None
+):
+    def run():
         item = _may(conn, user, item_id, "claim", body.version)
         changes = {"assignee_id": user["id"]}
         if item["status"] in CLAIM_STARTS:
@@ -469,13 +477,22 @@ def claim_item(item_id: UUID, body: Versioned, user: dict = Depends(current_user
         )
         return _respond(conn, user, item_id)
 
+    # A retried claim whose first answer was lost replays that answer, instead of a 409 naming you.
+    with db.pool.connection() as conn, conn.transaction():
+        return idempotent(conn, user, key, f"claim:{item_id}", body, run)
+
 
 @router.post("/items/{item_id}/release")
-def release_item(item_id: UUID, body: Versioned, user: dict = Depends(current_user)):
-    with db.pool.connection() as conn, conn.transaction():
+def release_item(
+    item_id: UUID, body: Versioned, user: dict = Depends(current_user), key: RetryKey = None
+):
+    def run():
         _may(conn, user, item_id, "release", body.version)
         apply_change(conn, user, "released", {"assignee_id": None}, item_id, body.version)
         return _respond(conn, user, item_id)
+
+    with db.pool.connection() as conn, conn.transaction():
+        return idempotent(conn, user, key, f"release:{item_id}", body, run)
 
 
 class Assign(Versioned):
@@ -483,8 +500,10 @@ class Assign(Versioned):
 
 
 @router.post("/items/{item_id}/assign")
-def assign_item(item_id: UUID, body: Assign, user: dict = Depends(current_user)):
-    with db.pool.connection() as conn, conn.transaction():
+def assign_item(
+    item_id: UUID, body: Assign, user: dict = Depends(current_user), key: RetryKey = None
+):
+    def run():
         item = _may(conn, user, item_id, "assign", body.version)
         ok = conn.execute(
             "select 1 from team_members m join users u on u.id = m.user_id"
@@ -498,6 +517,9 @@ def assign_item(item_id: UUID, body: Assign, user: dict = Depends(current_user))
             conn, user, "assigned", {"assignee_id": body.assignee_id}, item_id, body.version
         )
         return _respond(conn, user, item_id)
+
+    with db.pool.connection() as conn, conn.transaction():
+        return idempotent(conn, user, key, f"assign:{item_id}", body, run)
 
 
 class Transition(Versioned):

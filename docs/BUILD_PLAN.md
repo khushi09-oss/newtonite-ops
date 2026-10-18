@@ -79,10 +79,10 @@ GET  /items?team=&status=&priority=&assignee=&q=&overdue=&cursor=&limit=50
 GET  /items/counts?team=&priority=&assignee=&q=&overdue=   matching items per status
 POST /items                                       Idempotency-Key required
 GET  /items/{id}                                  item + allowed_actions + last 20 events
-PATCH /items/{id}                                 {version, title?, description?, priority?, due_at?}
-POST /items/{id}/claim                            {version}
-POST /items/{id}/release                          {version}
-POST /items/{id}/assign                           {version, assignee_id}
+PATCH /items/{id}                                 {version, title?, description?, priority?, due_at?}  Idempotency-Key honoured
+POST /items/{id}/claim                            {version}              Idempotency-Key honoured
+POST /items/{id}/release                          {version}              Idempotency-Key honoured
+POST /items/{id}/assign                           {version, assignee_id}  Idempotency-Key honoured
 POST /items/{id}/transition                       {version, to, note?}   Idempotency-Key honoured
 POST /items/{id}/comments                         {body}                 Idempotency-Key honoured
 GET  /items/{id}/events?before_seq=&limit=50
