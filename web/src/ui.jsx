@@ -304,3 +304,23 @@ export function ItemRow({ item, showStatus = true }) {
     </Link>
   );
 }
+
+// A team's people come 100 at a time. When there are more, or a search is on, this finds anyone by
+// name or email on the server, so a big team never silently hides someone.
+export function RosterFilter({ data, value, onChange }) {
+  if (!data?.capped && !value) return null;
+  return (
+    <div className="roster-filter">
+      <input
+        type="search"
+        aria-label="Find someone on this team"
+        placeholder="Find someone by name or email"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      {data?.capped && <span className="muted small">Showing the first 100. Search to find anyone else.</span>}
+    </div>
+  );
+}
+
+export const rosterQuery = (path, find, extra = "") => `${path}?q=${encodeURIComponent(find.trim())}${extra}`;

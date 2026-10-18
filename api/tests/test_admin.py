@@ -187,3 +187,47 @@ def test_admin_actions_are_recorded_and_append_only(client, team):
                 conn.transaction(),
             ):
                 conn.execute(sql)
+
+
+def test_a_team_past_the_first_100_people_hides_nobody_from_search(client, login):
+    """Rosters and the assign picker load 100 people. Anyone past that must still be findable, and
+    viewers, who cannot be given work, must not use up the picker's 100."""
+    login(ADMIN)
+    big = client.post("/admin/teams", json={"name": f"Big {uuid4().hex[:8]}"}).json()
+    tag = uuid4().hex[:8]
+    with db.pool.connection() as conn, conn.transaction():
+        for n in range(105):
+            role = "viewer" if n < 3 else "member"
+            uid = conn.execute(
+                "insert into users (email, name) values (%s, %s) returning id",
+                (f"big{n}-{tag}@example.com", f"Person {n:03d} {tag}"),
+            ).fetchone()["id"]
+            conn.execute("insert into team_members values (%s, %s, %s)", (big["id"], uid, role))
+        last = conn.execute(
+            "insert into users (email, name) values (%s, 'Zed 50%% Last') returning id",
+            (f"last-{tag}@example.com",),
+        ).fetchone()["id"]
+        conn.execute("insert into team_members values (%s, %s, 'member')", (big["id"], last))
+
+    for url in (f"/teams/{big['id']}/members", f"/admin/teams/{big['id']}/members"):
+        page = client.get(url).json()
+        assert page["capped"] is True and len(page["members"]) == 100
+        assert last not in {m["id"] for m in page["members"]}  # sorted last, past the 100
+        found = client.get(url, params={"q": "zed 50%"}).json()["members"]
+        assert [m["id"] for m in found] == [str(last)]
+        # % and _ are literal: a search for them alone finds only the name that has one.
+        assert [m["id"] for m in client.get(url, params={"q": "%"}).json()["members"]] == [
+            str(last)
+        ]
+        assert client.get(url, params={"q": "_"}).json()["members"] == []
+
+    owners = client.get(f"/teams/{big['id']}/members", params={"can_own": "true"}).json()
+    assert all(m["role"] != "viewer" for m in owners["members"])
+    viewer = client.get(f"/teams/{big['id']}/members", params={"q": f"Person 000 {tag}"}).json()
+    assert [m["role"] for m in viewer["members"]] == ["viewer"]
+    assert (
+        client.get(
+            f"/teams/{big['id']}/members", params={"q": f"Person 000 {tag}", "can_own": "true"}
+        ).json()["members"]
+        == []
+    )

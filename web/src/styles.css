@@ -1883,6 +1883,19 @@ a.button:hover {
   align-items: center;
   gap: 10px;
 }
+.roster-filter {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+.roster-filter input {
+  max-width: 360px;
+}
+.assign .roster-filter,
+.roster .roster-filter {
+  margin: 8px 0;
+  width: 100%;
+}
 .colour-pick {
   display: flex;
   align-items: center;

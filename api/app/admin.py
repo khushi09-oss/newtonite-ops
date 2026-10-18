@@ -82,7 +82,7 @@ def list_users(
     where, params = " where not u.private", []
     if q:
         where += " and (u.email ilike %s or u.name ilike %s)"
-        params = [f"%{q}%", f"%{q}%"]
+        params = [db.contains(q), db.contains(q)]
     with db.pool.connection() as conn:
         rows = conn.execute(
             f"{USER_VIEW}{where} order by u.name limit %s", [*params, limit + 1]
@@ -237,15 +237,23 @@ def create_team(body: NewTeam, admin: dict = Depends(require_admin), key: RetryK
 
 
 @router.get("/teams/{team_id}/members")
-def team_roster(team_id: UUID, admin: dict = Depends(require_admin)):
+def team_roster(
+    team_id: UUID,
+    admin: dict = Depends(require_admin),
+    q: str | None = Query(None, max_length=120),
+):
+    """The team's people, the first 100; `q` finds anyone else by name or email."""
+    where, params = "", []
+    if q:
+        where, params = " and (u.name ilike %s or u.email ilike %s)", [db.contains(q)] * 2
     with db.pool.connection() as conn:
         require_public(conn, team_id=team_id)
         rows = conn.execute(
             "select u.id, u.email, u.name, m.role, u.deactivated_at from team_members m"
-            " join users u on u.id = m.user_id where m.team_id = %s and not u.private"
+            f" join users u on u.id = m.user_id where m.team_id = %s and not u.private{where}"
             " order by m.role, u.name"
             " limit %s",
-            (team_id, LIST_CAP + 1),
+            (team_id, *params, LIST_CAP + 1),
         ).fetchall()
     return {"members": rows[:LIST_CAP], "capped": len(rows) > LIST_CAP}
 
