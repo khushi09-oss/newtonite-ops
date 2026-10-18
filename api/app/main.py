@@ -127,9 +127,9 @@ def health():
 
 @app.get("/internal/drain")
 def scheduled_drain(request: Request):
-    """The daily scheduled sweep: jobs left waiting while nobody used the app, then housekeeping.
-    Vercel's scheduler
-    sends `Authorization: Bearer $CRON_SECRET`; anything else is refused."""
+    """The scheduled sweep: jobs left waiting while nobody used the app, then housekeeping. Called
+    hourly by a GitHub Action and daily by Vercel's scheduler, both with `Authorization: Bearer
+    $CRON_SECRET`; anything else is refused (D-40)."""
     if not CRON_SECRET or request.headers.get("authorization") != f"Bearer {CRON_SECRET}":
         raise HTTPException(404, "Not Found")
     processed = outbox.drain(max_batches=50)

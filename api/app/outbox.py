@@ -65,7 +65,7 @@ def purge_idempotency_keys(conn) -> None:
 
 def housekeeping(conn) -> None:
     """Everything that keeps tables from growing without bound. Run by the worker every minute
-    and by the daily scheduled sweep, so it also happens where no worker runs. Failed jobs are
+    and by the scheduled sweep, so it also happens where no worker runs. Failed jobs are
     kept until someone retries them."""
     purge_idempotency_keys(conn)
     limits.purge(conn)
@@ -86,7 +86,7 @@ def warn_about_unknown_kinds(conn, handlers=HANDLERS) -> None:
 
 def drain(max_batches: int = 1) -> int:
     """Process up to `max_batches` batches on a pooled connection. Used by the API after a response
-    and by the daily sweep, where no worker process runs. Failures are logged, never swallowed."""
+    and by the scheduled sweep, where no worker process runs. Failures are logged, never swallowed."""
     done = 0
     try:
         with db.pool.connection() as conn:
