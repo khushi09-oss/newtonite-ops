@@ -1,19 +1,20 @@
 [project]
 name = "newtonite-ops-api"
 version = "0.1.0"
-requires-python = ">=3.11"
+requires-python = ">=3.12,<3.13"
+# Exact versions, and every indirect one in uv.lock: a fresh build installs what was tested.
 dependencies = [
-  "fastapi>=0.115",
-  "uvicorn[standard]>=0.30",
-  "psycopg[binary,pool]>=3.2",
-  "psycopg-pool>=3.2",  # ConnectionPool.check_connection, used by db.LivePool
-  "itsdangerous>=2.2",
-  "pyjwt[crypto]>=2.8",
-  "pydantic>=2.8",
+  "fastapi==0.143.5",
+  "uvicorn[standard]==0.54.0",
+  "psycopg[binary,pool]==3.3.6",
+  "psycopg-pool==3.3.3",  # ConnectionPool.check_connection, used by db.LivePool
+  "itsdangerous==2.2.0",
+  "pyjwt[crypto]==2.15.1",
+  "pydantic==2.14.1",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "httpx>=0.27", "ruff>=0.6"]
+dev = ["pytest==9.1.1", "httpx==0.28.1", "ruff==0.17.1"]
 
 [tool.setuptools]
 packages = ["app"]

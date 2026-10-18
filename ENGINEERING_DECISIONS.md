@@ -772,3 +772,18 @@ are kept out of the shared admin's lists, counts and retries.
 **Trade-off.** Notifications from before someone lost access stay stored but are hidden, so a
 person added back sees them again. Deleting them would have been simpler to reason about but
 would rewrite what the system recorded.
+
+## D-43 Every package is pinned, and the image installs from the lock
+
+**Situation.** The API's dependencies were ranges (`fastapi>=0.115`). A build with no cache
+failed: pip could no longer find versions that fit together, so a fresh clone could not start.
+Builds had only worked from Docker's cache, and every code change reinstalled everything because
+the code was copied before the install.
+
+**Decision.** Direct dependencies are exact versions in `pyproject.toml`, and `uv.lock` pins the
+rest. Vercel reads the lock; the Dockerfile exports it and installs it before copying the code.
+The versions are the ones the full test suite last passed on.
+
+**Trade-off.** Nothing updates by itself, including security fixes. An update is a deliberate
+change: upgrade one package in the lock, rebuild, run the gate. That is the point: what runs is
+what was tested.
