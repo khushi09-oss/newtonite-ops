@@ -431,6 +431,8 @@ function describeAdmin(e) {
       return `created the team ${t.name}`;
     case "role_set":
       return t.before ? `changed ${who} on ${team} from ${t.before} to ${t.after}` : `added ${who} to ${team} as ${t.after}`;
+    case "team_colour_set":
+      return `changed the colour of ${team}`;
     case "member_removed":
       return `removed ${who} from ${team}`;
     case "user_changed":

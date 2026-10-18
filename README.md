@@ -127,7 +127,8 @@ numbers point to the full reasoning in [ENGINEERING_DECISIONS.md](ENGINEERING_DE
   sidebar, filters and dialogs always match the data (D-29).
 - **Team page.** Anyone on a team sees who else is on it. The lead adds people by email,
   changes roles and removes people. Removing someone releases their open items, and each release
-  is in that item's history.
+  is in that item's history. The lead, or an admin for any public team, picks the team's colour
+  from eight, and every screen shows the new one at once (D-39).
   *Why:* leads know their own team best. Off the demo, admins still decide who gets an account
   at all (D-17, D-27).
 - **Invites are a message you send.** After a lead adds someone, the app shows a ready message

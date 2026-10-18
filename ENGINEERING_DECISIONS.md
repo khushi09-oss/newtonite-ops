@@ -700,3 +700,19 @@ dashboard's tiles count the same terms. All of them take their teams from `team_
 indexes, which a test checks for every view. A second test builds a small workspace and requires
 each tab, its full list, its counts and its tile to name the same items.
 
+## D-39 A team's colour is picked by whoever manages the team, under the rule that already decides that
+
+**Situation.** Each team got a colour when it was created (D-31), and nobody could change it. Two
+teams that someone works with side by side could share one, with no way to tell them apart.
+
+**Decision.** `PATCH /teams/{id}` sets the colour to one of the eight. Who may is the rule that
+already decides who manages a team's people, `lead_of()`: its lead, but not on the demo's shared
+teams, whose leads are shared accounts. An admin may also set it on any public team, as the Admin
+page already lets them change those teams. Outsiders get 404 and members 403. Each change is in
+the admin log. The team page shows the picker to exactly those people, and its add, role and
+remove controls now follow the same rule, so a lead of a shared demo team no longer sees a form
+that can only fail.
+
+**Trade-off.** The colour is the team's, not each person's: when a lead changes it, everyone on
+the team sees the change. A per-person colour would let two people disagree about what the team
+looks like.

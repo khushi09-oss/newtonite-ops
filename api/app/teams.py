@@ -17,7 +17,7 @@ from app import db, demo
 from app.admin import record, release_open_items, team_key
 from app.auth import current_user
 from app.idempotency import RetryKey, idempotent
-from app.items import next_team_colour
+from app.items import TEAM_COLOURS, next_team_colour
 
 router = APIRouter()
 
@@ -57,7 +57,8 @@ def create_team(body: NewTeam, user: dict = Depends(current_user), key: RetryKey
 
 
 def lead_of(conn, user: dict, team_id: UUID) -> dict:
-    """The team, if the caller leads it. 404 for outsiders, 403 for members who are not its lead."""
+    """The team, if the caller may manage it as its lead: its people, roles and colour. 404 for
+    outsiders, 403 for members who are not its lead and for the demo's shared teams."""
     team = conn.execute(
         "select t.id, t.private, m.role from teams t join team_members m"
         " on m.team_id = t.id and m.user_id = %s where t.id = %s",
@@ -66,11 +67,11 @@ def lead_of(conn, user: dict, team_id: UUID) -> dict:
     if team is None:
         raise HTTPException(404, "team not found")
     if team["role"] != "lead":
-        raise HTTPException(403, "Only the team's lead can change who is on it")
+        raise HTTPException(403, "Only the team's lead can change this team")
     # The demo's own teams belong to the shared accounts; only the Admin page changes those.
     if demo.DEMO_MODE and not team["private"]:
         raise HTTPException(
-            403, "The demo's teams are shared. Start your own workspace to add people."
+            403, "The demo's teams are shared. Start your own workspace to manage a team."
         )
     return team
 
@@ -159,3 +160,29 @@ def remove_member(
 
     with db.pool.connection() as conn, conn.transaction():
         return idempotent(conn, user, key, f"lead-remove:{team_id}:{user_id}", None, run)
+
+
+class TeamChange(BaseModel):
+    color: int = Field(ge=0, le=TEAM_COLOURS - 1)
+
+
+@router.patch("/teams/{team_id}")
+def set_team_colour(team_id: UUID, body: TeamChange, user: dict = Depends(current_user)):
+    """Pick the team's colour. Its lead may, under the same rule as managing its people, and so may
+    an admin for any public team, as on the Admin page. Every screen draws the stored colour."""
+    with db.pool.connection() as conn, conn.transaction():
+        team = conn.execute(
+            "select id, private, color from teams where id = %s", (team_id,)
+        ).fetchone()
+        if team is None:
+            raise HTTPException(404, "team not found")
+        if not (user["is_admin"] and not team["private"]):
+            lead_of(conn, user, team_id)
+        changed = conn.execute(
+            "update teams set color = %s where id = %s returning id, name, key, color",
+            (body.color, team_id),
+        ).fetchone()
+        record(
+            conn, user, "team_colour_set", team_id=team_id, before=team["color"], after=body.color
+        )
+    return changed

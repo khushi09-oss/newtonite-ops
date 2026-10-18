@@ -92,6 +92,7 @@ POST /items/{id}/watch | DELETE /items/{id}/watch
 GET  /teams/{id}/members                          who can be assigned
 PUT  /teams/{id}/members                          {email, name?, role}   the team's lead only
 DELETE /teams/{id}/members/{user_id}              the team's lead only; releases their open items
+PATCH /teams/{id}                                {color}                its lead, or an admin for a public team
 POST /teams                                       {name}                 demo only: a visitor's own team
 
 GET  /inbox                                       four buckets, each capped at 50

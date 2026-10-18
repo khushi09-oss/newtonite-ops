@@ -114,7 +114,8 @@ adding it would take. The reasoning behind what *was* built is in
   Renaming would need the old code to keep working as an alias.
 - **Team colours repeat after eight teams.** Each team stores one of eight colours, picked when it
   is created as the one least used among the teams its creator can see, so anyone's first eight
-  teams all look different. A ninth shares a colour, and nobody can pick a colour by hand yet.
+  teams all look different. A ninth shares a colour; its lead can pick another of the eight on the
+  team page (D-39), but there is no ninth colour to pick.
   Why: eight is as many categorical colours as stay apart for colour-blind readers (D-31).
 - **Search forgives typos in titles only,** and has no relevance ranking. Full-text search with
   English stemming covers titles and descriptions; from four letters up, a close match on a title

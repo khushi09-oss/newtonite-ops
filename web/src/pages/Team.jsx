@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom";
 import { api, useRetryKey } from "../api";
 import { Icon } from "../icons";
-import { Avatar, teamColor } from "../ui";
+import { Avatar, TEAM_COLOUR_NAMES, teamColor } from "../ui";
 
 const ROLES = ["viewer", "member", "lead"];
 const ROLE_HINT = {
@@ -130,6 +130,36 @@ export function AddMemberForm({ team, demo, onAdded }) {
   );
 }
 
+// The eight team colours as a radio group. Every screen draws the stored colour, so all of them refetch.
+function ColourPicker({ team }) {
+  const qc = useQueryClient();
+  const pick = useMutation({
+    mutationFn: (color) => api(`/teams/${team.id}`, { method: "PATCH", body: { color } }),
+    onSettled: () => qc.invalidateQueries(),
+  });
+  return (
+    <div className="colour-pick">
+      <span className="muted small">Colour</span>
+      <div role="radiogroup" aria-label="Team colour">
+        {TEAM_COLOUR_NAMES.map((name, slot) => (
+          <button
+            key={slot}
+            type="button"
+            role="radio"
+            aria-checked={team.color === slot}
+            aria-label={name}
+            title={name}
+            disabled={pick.isPending}
+            style={{ background: teamColor(slot) }}
+            onClick={() => team.color !== slot && pick.mutate(slot)}
+          />
+        ))}
+      </div>
+      {pick.isError && <span className="error small">{pick.error.message}</span>}
+    </div>
+  );
+}
+
 export default function Team() {
   const me = useOutletContext();
   const { id } = useParams();
@@ -153,6 +183,10 @@ export default function Team() {
     );
   }
   const isLead = team.role === "lead";
+  // The API's rule (teams.lead_of): a lead manages their team, except the demo's shared teams,
+  // and an admin may also pick the colour of any public team.
+  const canManage = isLead && (team.private || config.data?.demo === false);
+  const canColour = canManage || (me.is_admin && !team.private);
   const error = setRole.error || remove.error;
 
   return (
@@ -167,13 +201,14 @@ export default function Team() {
           <p className="muted">
             {team.role === "admin" ? "You are not on this team." : `You are its ${team.role}.`} {ROLE_HINT[team.role]}.
           </p>
+          {canColour && <ColourPicker team={team} />}
         </div>
         <button onClick={() => navigate(`/items?team=${id}`)}>
           <Icon name="list" /> Open items
         </button>
       </header>
 
-      {isLead && (
+      {canManage && (
         <section className="card team-add">
           <div className="card-head">
             <h2>Add someone</h2>
@@ -206,7 +241,7 @@ export default function Team() {
                 <span className="muted small">{m.email}</span>
               </span>
             </span>
-            {isLead && m.id !== me.id ? (
+            {canManage && m.id !== me.id ? (
               <select
                 aria-label={`Role for ${m.name}`}
                 value={m.role}
@@ -220,7 +255,7 @@ export default function Team() {
             ) : (
               <span className="muted small">{m.role}</span>
             )}
-            {isLead && m.id !== me.id ? (
+            {canManage && m.id !== me.id ? (
               <button className="ghost small-btn" disabled={remove.isPending} onClick={() => remove.mutate(m.id)}>
                 Remove
               </button>

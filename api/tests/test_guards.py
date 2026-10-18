@@ -224,6 +224,7 @@ SAFE_TO_REPEAT = {
     "mark_read": "read twice is still read",
     "mark_all_read": "marks up to the same id; a repeat marks nothing more",
     "add_member": "an upsert: the same email and role leave the same membership",
+    "set_team_colour": "sets the same colour again",
     "logout": "ends the same session",
     "dev_login": "signs in again, a new session either way",
     "google_sign_in": "signs in again, a new session either way",

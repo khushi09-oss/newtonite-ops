@@ -335,7 +335,10 @@ def test_search_forgives_a_typo_in_a_title_but_not_an_unrelated_word(client, log
     login("dev.mehta@newtonite.dev")
     tag = uuid4().hex[:6]
     item = new_item(client, team_id("Risk"), title=f"Chargeback dispute escalated {tag}")
-    found = lambda q: {i["id"] for i in client.get("/items", params={"q": q}).json()["items"]}
+
+    def found(q):
+        return {i["id"] for i in client.get("/items", params={"q": q}).json()["items"]}
+
     assert item["id"] in found("chargeback")  # a whole word, as before
     assert item["id"] in found("chargbak")  # two letters missing
     assert item["id"] in found("escalatd")
