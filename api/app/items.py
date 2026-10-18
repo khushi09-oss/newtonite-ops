@@ -297,9 +297,27 @@ def filters(user: dict, team, status, priority, assignee, q, overdue) -> tuple[l
             where.append("t.key = %s")
             params.append(key.group(1).upper())
     elif q:
-        where.append("w.search @@ websearch_to_tsquery('english', %s)")
-        params.append(q)
+        # Whole words and their stems through the full-text index. From four letters up, also a title
+        # word that closely matches what was typed ("refnd" finds "Refund") through the trigram index
+        # (migration 012); shorter than that, near matches would be nearly everything.
+        if len(q.strip()) >= 4:
+            where.append("(w.search @@ websearch_to_tsquery('english', %s) or %s <%% w.title)")
+            params += [q, q]
+        else:
+            where.append("w.search @@ websearch_to_tsquery('english', %s)")
+            params.append(q)
     return where, params
+
+
+# How close a typed word must be to a title word. The default, 0.6, missed common typos: "chargbak"
+# scores 0.56 against "Chargeback", "refnd" 0.50 against "Refund"; unrelated words score 0.2 or less.
+SIMILARITY = 0.5
+
+
+def open_search(conn) -> None:
+    """Set the typo threshold for this transaction only. Not on the database or the session: a pooled
+    connection opened before such a change, or a transaction-mode pooler like Neon's, would miss it."""
+    conn.execute(f"set local pg_trgm.word_similarity_threshold = {SIMILARITY}")
 
 
 def list_query(
@@ -342,7 +360,8 @@ def list_items(
     overdue: bool = False,
 ):
     sql, params = list_query(user, team, status, priority, assignee, q, cursor, limit, overdue)
-    with db.pool.connection() as conn:
+    with db.pool.connection() as conn, conn.transaction():
+        open_search(conn)
         rows = conn.execute(sql, params).fetchall()
     capped = len(rows) > limit
     rows = rows[:limit]
@@ -366,7 +385,8 @@ def count_items(
 ):
     """How many items match the list's filters, per status, for the headers of a list grouped by status."""
     where, params = filters(user, team, None, priority, assignee, q, overdue)
-    with db.pool.connection() as conn:
+    with db.pool.connection() as conn, conn.transaction():
+        open_search(conn)
         rows = conn.execute(
             "select w.status, count(*) as n from work_items w join teams t on t.id = w.team_id"
             f" where {' and '.join(where) or 'true'} group by w.status",

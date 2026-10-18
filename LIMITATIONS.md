@@ -116,10 +116,11 @@ adding it would take. The reasoning behind what *was* built is in
   is created as the one least used among the teams its creator can see, so anyone's first eight
   teams all look different. A ninth shares a colour, and nobody can pick a colour by hand yet.
   Why: eight is as many categorical colours as stay apart for colour-blind readers (D-31).
-- **Search is Postgres full-text with English stemming.** There is no fuzzy matching and no
-  relevance tuning.
-  Why: it needs no extra service and is indexed (D-06). A dedicated engine is worth it only if
-  relevance becomes the complaint.
+- **Search forgives typos in titles only,** and has no relevance ranking. Full-text search with
+  English stemming covers titles and descriptions; from four letters up, a close match on a title
+  word also counts ("refnd" finds "Refund"). Results are sorted by last change, not by relevance.
+  Why: both run on indexes with no extra service (D-06, D-37). A dedicated engine is worth it only
+  if relevance becomes the complaint.
 - **The inbox shows the first 50 of each tab,** and "gone quiet" is fixed at three days.
   Why: the inbox is for what needs you now. The items list, with filters and paging, is the way
   to see everything.
