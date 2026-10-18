@@ -17,6 +17,7 @@ import {
   Time,
   describeChange,
   describeEvent,
+  formatDate,
   itemKey,
   teamColor,
 } from "../ui";
@@ -416,7 +417,7 @@ export default function Item() {
               <dt>Due</dt>
               <dd className={overdue ? "late-text" : ""}>
                 {it.due_at ? (
-                  new Date(it.due_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
+                  formatDate(it.due_at, { year: true })
                 ) : (
                   <span className="muted">None</span>
                 )}

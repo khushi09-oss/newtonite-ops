@@ -21,6 +21,16 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: false, staleTime: 5000, refetchOnWindowFocus: true } },
 });
 
+// A count beside a link. On a phone it sits on the icon, where it shows at most 99+.
+function NavCount({ n, more = false, hot = false, title }) {
+  const full = `${n.toLocaleString()}${more ? "+" : ""}`;
+  return (
+    <span className={`nav-count${hot ? " hot" : ""}`} title={title} data-short={n > 99 ? "99+" : full}>
+      {full}
+    </span>
+  );
+}
+
 function Shell() {
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -81,26 +91,24 @@ function ShellBody({ me, demo, qc, navigate }) {
         {/* One group, so on a phone the links share a single row that scrolls sideways. */}
         <div className="rail-nav">
           <NavLink to="/" end className="nav-link">
-            <Icon name="dashboard" /> Dashboard
+            <Icon name="dashboard" /> <span className="nav-label" data-short="Home">Dashboard</span>
           </NavLink>
           <NavLink to="/inbox" className="nav-link">
-            <Icon name="inbox" /> Inbox
-            {inboxCount > 0 && <span className="nav-count">{inboxCount}</span>}
+            <Icon name="inbox" /> <span className="nav-label" data-short="Inbox">Inbox</span>
+            {inboxCount > 0 && <NavCount n={inboxCount} />}
           </NavLink>
           <NavLink to="/items" end className="nav-link">
-            <Icon name="list" /> All items
+            <Icon name="list" /> <span className="nav-label" data-short="Items">All items</span>
           </NavLink>
           <NavLink to="/notifications" className="nav-link">
-            <Icon name="bell" /> Notifications
-            {unreadCount > 0 && <span className="nav-count hot">{unread.data.capped ? "50+" : unreadCount}</span>}
+            <Icon name="bell" /> <span className="nav-label" data-short="Alerts">Notifications</span>
+            {unreadCount > 0 && <NavCount n={unreadCount} more={unread.data.capped} hot />}
           </NavLink>
           {me.is_admin && (
             <NavLink to="/admin" className="nav-link">
-              <Icon name="shield" /> Admin
+              <Icon name="shield" /> <span className="nav-label" data-short="Admin">Admin</span>
               {dash.data?.failed_jobs > 0 && (
-                <span className="nav-count hot" title="Background jobs that failed and wait for a retry">
-                  {dash.data.failed_jobs}
-                </span>
+                <NavCount n={dash.data.failed_jobs} hot title="Background jobs that failed and wait for a retry" />
               )}
             </NavLink>
           )}

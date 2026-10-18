@@ -125,8 +125,15 @@ export function TrendChart({ trend }) {
   const top = niceMax(Math.max(...trend.map((d) => Math.max(d.created, d.resolved))));
   const x = (i) => m.l + (trend.length === 1 ? iw / 2 : (i / (trend.length - 1)) * iw);
   const y = (v) => m.t + ih - (v / top) * ih;
-  const path = (key) => trend.map((d, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(d[key]).toFixed(1)}`).join("");
   const last = trend.length - 1;
+  // The last day is today, still going, so its line is dashed and its labels say "so far": a low
+  // value there is a day not over, not a drop.
+  const path = (key, from, to) =>
+    trend
+      .slice(from, to + 1)
+      .map((d, j) => `${j ? "L" : "M"}${x(from + j).toFixed(1)},${y(d[key]).toFixed(1)}`)
+      .join("");
+  const label = (i) => (i === last ? "Today" : day(trend[i].day));
   const ticks = [0, top / 2, top];
   // A date label needs about 48px; a narrow chart labels fewer days, always including today.
   const step = Math.max(3, Math.ceil(trend.length / Math.max(1, Math.floor(iw / 48))));
@@ -157,7 +164,7 @@ export function TrendChart({ trend }) {
           <tbody>
             {trend.map((d) => (
               <tr key={d.day}>
-                <td>{day(d.day)}</td>
+                <td>{d === trend[last] ? "Today, so far" : day(d.day)}</td>
                 <td>{d.created}</td>
                 <td>{d.resolved}</td>
               </tr>
@@ -196,14 +203,15 @@ export function TrendChart({ trend }) {
           {trend.map((d, i) =>
             i % step === last % step ? (
               <text key={d.day} x={x(i)} y={H - 6} textAnchor="middle">
-                {day(d.day)}
+                {label(i)}
               </text>
             ) : null,
           )}
           {hover !== null && <line x1={x(hover)} x2={x(hover)} y1={m.t} y2={m.t + ih} stroke="#c3c8d0" strokeWidth="1" />}
           {["created", "resolved"].map((k) => (
             <g key={k}>
-              <path d={path(k)} fill="none" stroke={SERIES[k]} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+              <path d={path(k, 0, Math.max(0, last - 1))} fill="none" stroke={SERIES[k]} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+              {last > 0 && <path d={path(k, last - 1, last)} fill="none" stroke={SERIES[k]} strokeWidth="2" strokeDasharray="3 4" strokeLinecap="round" />}
               <circle cx={x(hover ?? last)} cy={y(trend[hover ?? last][k])} r="4" fill={SERIES[k]} stroke="#fff" strokeWidth="2" />
               <text x={W - m.r + 10} y={ends[k] + 4} style={{ fill: "#454b56" }}>
                 {k === "created" ? "Created" : "Resolved"} {trend[last][k]}
@@ -213,7 +221,7 @@ export function TrendChart({ trend }) {
         </svg>
         {hover !== null && (
           <div className="chart-tip" style={{ left: `${(x(hover) / W) * 100}%`, top: `${(m.t / H) * 100}%` }}>
-            <b>{day(trend[hover].day)}</b>
+            <b>{hover === last ? "Today, so far" : day(trend[hover].day)}</b>
             <br />
             Created {trend[hover].created}, resolved {trend[hover].resolved}
           </div>

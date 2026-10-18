@@ -152,6 +152,14 @@ export function Person({ name, muted }) {
   );
 }
 
+// One way to write a date everywhere: "Aug 11", with the year when it is not this year. Words, not
+// numbers, so 8/11 never means August to one reader and November to another.
+export function formatDate(iso, { year = false } = {}) {
+  const d = new Date(iso);
+  const showYear = year || d.getFullYear() !== new Date().getFullYear();
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", ...(showYear && { year: "numeric" }) });
+}
+
 export function timeAgo(iso) {
   if (!iso) return "";
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
@@ -162,7 +170,7 @@ export function timeAgo(iso) {
   if (h < 24) return `${Math.round(h)} h ago`;
   const d = h / 24;
   if (d < 30) return `${Math.round(d)} d ago`;
-  return new Date(iso).toLocaleDateString();
+  return formatDate(iso);
 }
 
 export function Time({ iso }) {
@@ -264,7 +272,7 @@ export function DueTag({ item }) {
     ? `${Math.max(1, -days)} d overdue`
     : days === 0
       ? "Due today"
-      : `Due ${due.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+      : `Due ${formatDate(due)}`;
   return (
     <span className={`due ${late ? "late" : ""}`} title={due.toLocaleString()}>
       {text}
