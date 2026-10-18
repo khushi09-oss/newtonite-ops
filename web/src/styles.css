@@ -2269,6 +2269,51 @@ a.button:hover {
   }
 }
 
+/* On a phone the links share one row evenly, icon over a short word, so none is cut off at the
+   edge however many there are (an admin has five). The full name stays the link's accessible name. */
+@media (max-width: 600px) {
+  .rail-nav {
+    overflow-x: visible;
+  }
+  .rail-nav .nav-link {
+    flex: 1 1 0;
+    min-width: 0;
+    flex-direction: column;
+    gap: 3px;
+    padding: 6px 2px;
+    position: relative;
+  }
+  .rail-nav .nav-label {
+    font-size: 0;
+  }
+  .rail-nav .nav-label::after {
+    content: attr(data-short);
+    font-size: 11.5px;
+  }
+  .rail-nav .nav-count {
+    position: absolute;
+    top: 2px;
+    left: calc(50% + 6px);
+    margin: 0;
+    line-height: 16px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--frame-2);
+    color: var(--on-frame);
+  }
+  .rail-nav .nav-count.hot {
+    background: var(--accent);
+    color: #fff;
+  }
+  .rail-nav .nav-count {
+    font-size: 0;
+  }
+  .rail-nav .nav-count::after {
+    content: attr(data-short);
+    font-size: 10.5px;
+  }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   button,
   .tile,
