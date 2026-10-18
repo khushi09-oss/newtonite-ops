@@ -49,6 +49,14 @@ export default function Dashboard() {
       </header>
 
       {q.isError && <p className="error">Could not load the dashboard: {q.error.message}</p>}
+      {q.data?.failed_jobs > 0 && (
+        <Link to="/admin?tab=jobs" className="alert-strip">
+          <strong>
+            {q.data.failed_jobs} background job{q.data.failed_jobs === 1 ? "" : "s"} failed.
+          </strong>{" "}
+          The notifications they carry have not been delivered. Open Admin to see why and retry.
+        </Link>
+      )}
       {q.isPending && <div className="page-loading">Loading the dashboard</div>}
       {/* A visitor's own workspace starts empty: walk its owner through it. Someone added to another
           person's team has nothing to set up. */}

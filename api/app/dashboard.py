@@ -113,7 +113,15 @@ def dashboard(user: dict = Depends(current_user)):
             )
         ]
         recent = conn.execute(*q["recent"]).fetchall()
+        # Admins are the ones who can retry a failed job, so their dashboard and sidebar say when
+        # one is waiting (D-21). Everyone else gets null. One count on the (status, id) index.
+        failed_jobs = (
+            conn.execute("select count(*) as n from outbox where status = 'dead'").fetchone()["n"]
+            if user["is_admin"]
+            else None
+        )
     return {
+        "failed_jobs": failed_jobs,
         "counts": counts,
         "by_team": sorted(by_team.values(), key=lambda t: t["team"]),
         "trend": [

@@ -97,6 +97,11 @@ function ShellBody({ me, demo, qc, navigate }) {
           {me.is_admin && (
             <NavLink to="/admin" className="nav-link">
               <Icon name="shield" /> Admin
+              {dash.data?.failed_jobs > 0 && (
+                <span className="nav-count hot" title="Background jobs that failed and wait for a retry">
+                  {dash.data.failed_jobs}
+                </span>
+              )}
             </NavLink>
           )}
         </div>

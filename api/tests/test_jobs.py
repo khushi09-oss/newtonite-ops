@@ -142,3 +142,25 @@ def test_housekeeping_purges_old_finished_jobs_but_keeps_failed_ones(client):
         }
     assert left == {recent_done, old_dead}
     drop(recent_done, old_dead)
+
+
+def test_a_failed_job_is_reported_to_admins_and_only_to_admins(client, login):
+    """A job that stops after its last attempt needs a person. Admins, who can retry it, see the
+    count on their dashboard; everyone else sees nothing."""
+    with db.pool.connection() as conn:
+        before = conn.execute("select count(*) as n from outbox where status = 'dead'").fetchone()[
+            "n"
+        ]
+        rid = conn.execute(
+            "insert into outbox (kind, payload, status, attempts, last_error)"
+            " values ('test_alert', %s, 'dead', 8, 'boom') returning id",
+            (Jsonb({}),),
+        ).fetchone()["id"]
+    try:
+        login("ava.okafor@newtonite.dev")
+        assert client.get("/dashboard").json()["failed_jobs"] == before + 1
+        login("finn.okafor@newtonite.dev")
+        assert client.get("/dashboard").json()["failed_jobs"] is None
+    finally:
+        with db.pool.connection() as conn:
+            conn.execute("delete from outbox where id = %s", (rid,))
