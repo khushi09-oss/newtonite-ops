@@ -149,7 +149,7 @@ numbers point to the full reasoning in [ENGINEERING_DECISIONS.md](ENGINEERING_DE
   *Why:* a notification is never lost when the change commits, and never sent for a change that
   did not (D-04, D-11).
 - **On Vercel there is no worker process.** Each API instance drains the outbox after it answers,
-  and a daily job sweeps the rest.
+  and an hourly GitHub Action sweeps the rest (D-40).
   *Why:* Vercel runs functions, not long-lived processes (D-18).
 - **The demo resets every night** at 04:00 Singapore time, back to the same seed of 40 people,
   8 teams and 20,000 items. Visitors' workspaces in use are kept, with their history; one where
@@ -172,7 +172,7 @@ stack.
 | The database drops idle connections (Neon does) | A dead connection is replaced at once instead of being handed to a request. | D-30 |
 | The worker is killed mid-batch | Its transaction rolls back and the row locks go with it; the next poll picks the rows up again. Handlers are idempotent, so nobody is notified twice. | D-04, D-11 |
 | A notification job keeps failing | Retried after 2, 4, 8 and so on up to 128 seconds. On the eighth failure it stops with its error and waits on the Admin page, where Retry is safe. | D-04, D-21 |
-| Nobody uses the app on Vercel, so no worker runs | Each response drains the outbox; a daily scheduled sweep catches the rest. | D-18 |
+| Nobody uses the app on Vercel, so no worker runs | Each response drains the outbox; an hourly scheduled sweep catches the rest. | D-18, D-40 |
 | The live-updates stream drops | The browser reconnects by itself, and pages poll every 15 seconds until it is back. | D-20 |
 | Someone outside a team asks for its item | 404, the same answer as for an id that does not exist. | D-05 |
 | A person is signed out or deactivated elsewhere | Their next request is 401 and their live stream closes. Deactivating someone also releases the work they owned, each release in that item's history. | D-15, D-17, D-20 |
@@ -235,8 +235,9 @@ curl -b jar localhost:8000/inbox
 The repository deploys as one Vercel project with two services (`vercel.json`): the Vite build
 serves the pages, and FastAPI answers under `/api`. Functions run in Singapore (`sin1`), next to
 the Neon database. There is no worker process on Vercel; with `DRAIN_OUTBOX_IN_REQUESTS=true` each
-API instance processes the outbox after it answers a request, and a daily scheduled call to
-`/api/internal/drain` sweeps anything left.
+API instance processes the outbox after it answers a request, and a scheduled call to
+`/api/internal/drain` sweeps anything left: hourly from `.github/workflows/drain.yml`, which needs
+the same `CRON_SECRET` as a repository secret, and daily from Vercel's own scheduler.
 
 ```bash
 vercel link                       # once, on your own account
@@ -389,7 +390,7 @@ Set in `.env` locally, or as environment variables wherever the API runs.
 | `WRITE_LIMIT_PER_MINUTE` | `300` | Writes per user per minute before 429. |
 | `DRAIN_OUTBOX_IN_REQUESTS` | not set | `true` on Vercel, where no worker process runs. |
 | `DEMO_MODE` | not set | `true` only for a public demo: any Google account gets its own private workspace, demo accounts are protected, the shared data resets nightly, workspaces in use are kept. |
-| `CRON_SECRET` | not set | A random string; the daily sweep must present it. |
+| `CRON_SECRET` | not set | A random string that the scheduled sweeps (hourly from GitHub, daily from Vercel) and the nightly demo reset must present. Set the same value as a GitHub repository secret. |
 | `DB_POOL_MAX` | `20` | Connections per API instance. `5` on Vercel. |
 | `GOOGLE_CLIENT_ID` | empty, so Google sign-in is hidden | The OAuth client ID from Google Cloud. |
 | `ADMIN_EMAILS` | empty | The first admins, comma separated. They become admins on their first Google sign-in. |

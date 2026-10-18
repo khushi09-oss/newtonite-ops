@@ -315,6 +315,8 @@ them, hides them instead.
 
 ## D-18 On Vercel the outbox is drained by the API itself, after each response
 
+> Extended by D-40: the sweep also runs every hour, from a GitHub Action.
+
 **Situation.** D-04 assumed a worker process polling every two seconds. Vercel runs code only
 while a request is in flight, and on the free plan scheduled jobs run at most once a day.
 
@@ -718,6 +720,21 @@ that can only fail.
 **Trade-off.** The colour is the team's, not each person's: when a lead changes it, everyone on
 the team sees the change. A per-person colour would let two people disagree about what the team
 looks like.
+
+## D-40 The outbox is swept every hour, by a GitHub Action calling the drain endpoint
+
+**Situation.** On Vercel the outbox moves when someone uses the app (D-18). While nobody does, a
+failed notification waited for the one scheduled sweep a day that the free plan allows.
+
+**Decision.** A GitHub Action calls `/api/internal/drain` at 17 minutes past every hour, with the
+same `CRON_SECRET` the API already checks. Nothing in the API changes. Vercel's daily sweep stays,
+so the sweep still happens if GitHub's schedule stops.
+
+**Trade-off.** Each call wakes the database, which then stays up about five minutes, so the idle
+database is awake around two hours a day. That fits inside Neon's free allowance. GitHub runs
+schedules late when it is busy and turns them off after 60 days without a commit, so this is a
+ceiling of about an hour, not a promise. An always-on worker or a paid plan's per-minute cron
+would close the gap.
 
 ## D-41 The nightly reset keeps the private workspaces still in use
 

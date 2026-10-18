@@ -78,11 +78,12 @@ adding it would take. The reasoning behind what *was* built is in
 ## Running on Vercel
 
 - **There is no always-on worker.** Each API instance drains the outbox after it answers a
-  request, so notifications and retries move whenever someone uses the app. The scheduled sweep
-  runs once a day, the most the free plan allows. An idle app can leave a failed job waiting until
-  then.
-  Why: Vercel runs functions, not long-lived processes (D-18). Locally the worker runs every two
-  seconds.
+  request, so notifications and retries move whenever someone uses the app. While nobody does, a
+  GitHub Action sweeps the outbox every hour, so a job can wait up to an hour. GitHub may run a
+  scheduled job late when it is busy, and turns schedules off in a repository with no commits for
+  60 days; Vercel's own daily sweep still runs then.
+  Why: Vercel runs functions, not long-lived processes, and its free plan schedules once a day
+  (D-18, D-40). Locally the worker runs every two seconds.
 - **The first request after a quiet spell is slower,** by about a second, while Neon wakes the
   suspended database. Connections it dropped are replaced at once, so that request still succeeds
   (D-30).
