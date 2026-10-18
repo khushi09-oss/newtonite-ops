@@ -92,9 +92,11 @@ numbers point to the full reasoning in [ENGINEERING_DECISIONS.md](ENGINEERING_DE
 
 - **Dashboard.** It shows five counts: assigned to you, waiting for your approval, urgent and
   unclaimed, overdue, and quiet for three days. Below them are open work by team, created against
-  resolved over 14 days, and recent activity. Each count links to the list behind it.
+  resolved over 14 days, and recent activity. Each count links to the list behind it. The team
+  chart shows the 12 busiest teams, most open work first, and says how many more have open work.
   *Why:* the first screen should answer "what needs me?", not show a list of everything. Each
-  number is one indexed query scoped to your teams (D-22).
+  number is one indexed query scoped to your teams (D-22). An admin can see hundreds of teams, and
+  a bar per team would be a page to scroll, not an overview.
 - **Inbox.** The same questions as tabs, each with its count, holding the items themselves.
   It opens on the first tab with work in it, and "Show all in Items" lists every match. Each
   question is defined once on the server, so a tab, its full list and its dashboard tile always

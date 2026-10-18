@@ -11,6 +11,7 @@ from app.items import OPEN, OVERDUE, inbox_views, team_scope
 router = APIRouter()
 TREND_DAYS = 14
 RECENT = 15
+TEAM_BARS = 12  # the "open work by team" chart: the busiest teams, then a count of the rest
 
 
 def my_teams(conn, user: dict) -> tuple[list, list]:
@@ -97,6 +98,7 @@ def dashboard(user: dict = Depends(current_user)):
                 r["team_id"], {"team_id": r["team_id"], "team": r["team"], "by_status": {}}
             )
             entry["by_status"][r["status"]] = r["n"]
+        ranked = sorted(by_team.values(), key=lambda t: (-sum(t["by_status"].values()), t["team"]))
         created = {r["day"].date().isoformat(): r["n"] for r in conn.execute(*q["created"])}
         resolved = {r["day"].date().isoformat(): r["n"] for r in conn.execute(*q["resolved"])}
         days = [
@@ -120,7 +122,11 @@ def dashboard(user: dict = Depends(current_user)):
     return {
         "failed_jobs": failed_jobs,
         "counts": counts,
-        "by_team": sorted(by_team.values(), key=lambda t: t["team"]),
+        # The teams with the most open work, so an admin over hundreds of teams sees where it is
+        # piling up instead of a list to scroll. The rest are counted, and the list is one click.
+        "by_team": ranked[:TEAM_BARS],
+        "by_team_capped": len(ranked) > TEAM_BARS,
+        "teams_with_open_work": len(ranked),
         "trend": [
             {"day": d, "created": created.get(d, 0), "resolved": resolved.get(d, 0)} for d in days
         ],

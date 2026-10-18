@@ -81,6 +81,9 @@ function findProblems() {
 }
 
 async function check(page, label, problems) {
+  // The pointer is left wherever the last click was. If a chart lands under it, its hover tooltip
+  // opens, and a tooltip sits over other text by design. Move it off the page before measuring.
+  await page.mouse.move(0, 0);
   // Not "networkidle": the live-updates stream stays open on purpose.
   await page.waitForFunction(() => !document.querySelector(".page-loading, .group-note"));
   await page.waitForTimeout(400); // let charts and counts settle

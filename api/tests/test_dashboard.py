@@ -131,3 +131,23 @@ def test_overdue_filter_lists_only_open_work_past_due(client, login, team_id):
         "items"
     ]
     assert [i["id"] for i in found] == [late["id"]]
+
+
+def test_the_team_chart_shows_the_busiest_teams_and_counts_the_rest(client, login):
+    """An admin can see hundreds of teams. The chart shows the busiest, most open work first, and
+    says how many more there are, instead of one bar per team down the page."""
+    login("ava.okafor@newtonite.dev")
+    for n in range(dashboard.TEAM_BARS + 1):
+        team = client.post("/admin/teams", json={"name": f"Chart {uuid4().hex[:8]} {n}"}).json()
+        r = client.post(
+            "/items",
+            json={"team_id": team["id"], "kind": "task", "title": "One open item"},
+            headers={"Idempotency-Key": str(uuid4())},
+        )
+        assert r.status_code == 201
+    body = client.get("/dashboard").json()
+    totals = [sum(t["by_status"].values()) for t in body["by_team"]]
+    assert len(body["by_team"]) == dashboard.TEAM_BARS and body["by_team_capped"] is True
+    assert body["teams_with_open_work"] > dashboard.TEAM_BARS
+    assert totals == sorted(totals, reverse=True)  # busiest first
+    assert {t["team"] for t in body["by_team"]} >= {"Risk", "Payments"}  # the seeded big teams
