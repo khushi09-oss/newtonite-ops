@@ -484,12 +484,59 @@ given to a different Google account, sign-in is refused.
 
 ## Assumptions
 
-- People sign in with Google, and only invited emails get in. Locally, a dev sign-in lets you
-  be any seeded user without Google. Authorization is enforced by the server in its queries.
-- Notifications are stored in a table and shown in the app. Email or chat delivery would be
-  one more outbox handler.
-- One company, many teams. A user holds a role per team (viewer, member, lead) and may be a
-  global admin.
+The brief leaves these open on purpose. Each is what this build decided, and why.
+
+**The work**
+
+- **One kind of record for all work.** An incident, a customer issue, a payment to investigate, a
+  compliance request and a task are all one work item with a `kind`. They share the questions the
+  brief asks of every item: what it is, its state, who owns it, what happened, what is next.
+  Separate tables per kind would multiply every rule below by five.
+- **Why it exists is the description.** The title says what it is; the description says why, and
+  is shown under the title on the item page.
+- **Four priorities:** Urgent, High, Normal, Low. "Urgent" in the inbox means Urgent or High.
+- **Every item belongs to one team and stays there.** Moving an item between teams is not
+  offered: it would change who may see its whole history.
+- **One owner at a time.** Responsibility is a single person, so "who is doing this" always has
+  one answer. Others follow an item by watching it.
+- **Nothing is deleted.** Work ends by being closed, and history is append-only. An item closed
+  by mistake is reopened, and both moves stay on record.
+
+**The workflow**
+
+- **One workflow for every item:** New, Triaged, In progress, Awaiting approval, Approved,
+  Resolved, Closed. Every item passes a lead's approval before it is resolved. One workflow keeps
+  the rules testable in a day; approval that depends on the kind is the obvious next step.
+- **The team's lead approves,** or an admin on a public team. Nobody approves their own request.
+  Rejecting needs a note and sends the item back to Triaged.
+- **Only the lead closes and reopens,** so "done" means someone accountable agreed.
+- **Claiming new or triaged work starts it;** elsewhere a claim only takes ownership (D-33).
+- **"Gone quiet" is three days with no activity,** and overdue is open work past its due date.
+
+**People and access**
+
+- **One company, many teams.** A person holds one role per team: viewer (follows work), member
+  (does it) or lead (approves and manages the team), and may also be a global admin.
+- **Access is the team.** You see the items of the teams you are on. An admin sees every public
+  team. Anyone else gets 404, as if the item did not exist (D-05).
+- **People sign in with Google, and only invited emails get in.** There are no passwords. Off the
+  demo, admins invite people and leads add people who already have an account (D-16, D-17).
+
+**Time, conflicts and notifications**
+
+- **The first write wins, and the second is told.** When two people change the same item, the
+  later change is refused with what changed and by whom, instead of being merged silently (D-02).
+- **Times are stored in UTC and shown in the reader's own time zone.** The dashboard's days are
+  UTC days.
+- **Notifications are in the app.** Watchers, the owner and the reporter of an item are told about
+  each change they did not make, while they can still see it (D-42). Email or chat would be one
+  more outbox handler, once there is a domain to send from.
+
+**Scale**
+
+- **Designed for** thousands of people, hundreds of teams, tens of thousands of open items and
+  millions of history rows, as the brief says. Nothing loads a whole table: lists page by cursor,
+  every list is capped and says so, and every screen's query is on an index (D-06, D-24).
 
 ## What comes next
 
@@ -500,5 +547,10 @@ given to a different Google account, sign-in is refused.
   that try to cross between organisations on every route.
 - **Operations.** Failed jobs already show on the admin's dashboard. Next: an alert outside the
   app when one fails, and metrics on queue depth and conflict rate.
+- **A long-running host.** Vercel runs code only while a request is open, so the outbox rides on
+  traffic and live updates poll (LIMITATIONS, "Running on Vercel"). On a host that keeps
+  processes up (Railway, Fly.io, or one VM with this same `docker compose`), the worker runs as its
+  own service again, and Postgres `LISTEN/NOTIFY` pushes changes to open pages instead of each tab
+  checking every 1.5 seconds. Nothing in the data model changes.
 - **At larger scale.** Partition the history table by time, give each preview deploy its own
   database copy, and move search to a dedicated engine only if relevance becomes the complaint.
