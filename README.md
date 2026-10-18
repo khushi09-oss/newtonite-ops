@@ -346,6 +346,7 @@ before testing again.
 | A screen breaks for one of the roles on the live site | Browser: `smoke.spec.js`, read-only, every screen as each demo person |
 | Text is drawn over other text, or a page scrolls sideways | Browser: `layout.spec.js`, read-only, every screen and dialog as each demo person, desktop and phone |
 | The workflow breaks somewhere between new and closed | Browser: `workflow.spec.js`, one item through every status with a member, the lead, a viewer and an outsider |
+| A screen quietly changes or keeps data the person did not ask it to | Browser: `edits.spec.js`, editing a title leaves the due date alone; a sidebar link replaces an old search |
 | A first-time visitor cannot get from an empty workspace to finished work, or someone else sees it | Browser: `workspace.spec.js`, demo mode: the setup card, an invite, a teammate who claims and resolves, the lead who approves and closes, then another visitor and the demo admin both get "not found" |
 
 ## How it is built

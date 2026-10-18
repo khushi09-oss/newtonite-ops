@@ -1883,6 +1883,18 @@ a.button:hover {
   align-items: center;
   gap: 10px;
 }
+/* Read by screen readers, not shown. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.load-error {
+  margin: 8px 0;
+}
 .roster-filter {
   display: grid;
   gap: 6px;

@@ -85,7 +85,7 @@ export function Status({ value }) {
 }
 
 // Signal bars for high to low, a filled square for urgent: the shape carries it, the word confirms it.
-export function PriorityIcon({ value }) {
+function PriorityIcon({ value }) {
   if (value === 0) {
     return (
       <svg className="priority-icon priority-0" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
@@ -160,7 +160,7 @@ export function formatDate(iso, { year = false } = {}) {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", ...(showYear && { year: "numeric" }) });
 }
 
-export function timeAgo(iso) {
+function timeAgo(iso) {
   if (!iso) return "";
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
   if (s < 45) return "just now";
@@ -263,7 +263,7 @@ export function teamColor(slot) {
 const OPEN_STATUSES = ["new", "triaged", "in_progress", "awaiting_approval", "approved"];
 
 // Only open work has a deadline worth showing. Past due reads in red, in days.
-export function DueTag({ item }) {
+function DueTag({ item }) {
   if (!item.due_at || !OPEN_STATUSES.includes(item.status)) return <span className="due" />;
   const due = new Date(item.due_at);
   const days = Math.round((due.getTime() - Date.now()) / 86400000);
@@ -324,3 +324,17 @@ export function RosterFilter({ data, value, onChange }) {
 }
 
 export const rosterQuery = (path, find, extra = "") => `${path}?q=${encodeURIComponent(find.trim())}${extra}`;
+
+// What a list shows when it could not load: the reason and a way to try again, never an empty list
+// that looks like "nothing here".
+export function LoadError({ query }) {
+  if (!query.isError) return null;
+  return (
+    <p className="error load-error">
+      Could not load this: {query.error.message}{" "}
+      <button type="button" className="link" onClick={() => query.refetch()}>
+        Try again
+      </button>
+    </p>
+  );
+}

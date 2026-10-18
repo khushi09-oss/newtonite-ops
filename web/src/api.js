@@ -1,7 +1,7 @@
 // One fetch wrapper. Errors carry the status and the parsed body so the item page can read a 409.
 import { useRef } from "react";
 
-export class ApiError extends Error {
+class ApiError extends Error {
   constructor(status, body) {
     const detail = body && body.detail;
     super((detail && detail.message) || (typeof detail === "string" ? detail : `Request failed (${status})`));

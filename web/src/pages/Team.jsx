@@ -3,7 +3,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom";
 import { api, useRetryKey } from "../api";
 import { Icon } from "../icons";
-import { Avatar, RosterFilter, TEAM_COLOUR_NAMES, rosterQuery, teamColor } from "../ui";
+import { Avatar, LoadError, RosterFilter, TEAM_COLOUR_NAMES, rosterQuery, teamColor } from "../ui";
 
 const ROLES = ["viewer", "member", "lead"];
 const ROLE_HINT = {
@@ -175,7 +175,7 @@ export default function Team() {
     placeholderData: keepPreviousData,
   });
   const config = useQuery({ queryKey: ["auth-config"], queryFn: () => api("/auth/config"), staleTime: Infinity });
-  const done = { onSettled: () => qc.invalidateQueries({ queryKey: ["members", id] }) };
+  const done = { onSettled: () => qc.invalidateQueries() };
   const setRole = useMutation({ mutationFn: ({ email, role }) => api(`/teams/${id}/members`, { method: "PUT", body: { email, role } }), ...done });
   const remove = useMutation({ mutationFn: (userId) => api(`/teams/${id}/members/${userId}`, { method: "DELETE" }), ...done });
 
@@ -246,6 +246,7 @@ export default function Team() {
       )}
       <div className="table">
         {members.isPending && <div className="group-note">Loading</div>}
+        <LoadError query={members} />
         {members.data?.members.map((m) => (
           <div key={m.id} className="trow roster-row">
             <span className="tperson">

@@ -3,7 +3,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { Link, Navigate, useOutletContext, useSearchParams } from "react-router-dom";
 import { api, useRetryKey } from "../api";
 import { Icon } from "../icons";
-import { Avatar, RosterFilter, Time, rosterQuery, teamColor } from "../ui";
+import { Avatar, LoadError, RosterFilter, Time, rosterQuery, teamColor } from "../ui";
 
 const ROLES = ["viewer", "member", "lead"];
 
@@ -11,7 +11,7 @@ function useAdminMutation(fn) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: fn,
-    onSettled: () => qc.invalidateQueries({ queryKey: ["admin"] }),
+    onSettled: () => qc.invalidateQueries(),
   });
 }
 
@@ -176,7 +176,7 @@ function InviteDialog({ onDone, onInvited }) {
       >
         <div className="modal-head">
           <h2 id="invite-title">Invite a person</h2>
-          <button type="button" className="ghost" aria-label="Close" onClick={() => dialog.current.close()}>
+          <button type="button" className="ghost" aria-label="Close (Esc)" onClick={() => dialog.current.close()}>
             Esc
           </button>
         </div>
@@ -235,6 +235,7 @@ function Teams() {
   const create = useAdminMutation(() => api("/admin/teams", { method: "POST", key: retry.key(), body: { name: name.trim() } }));
   const list = teams.data?.teams || [];
   const team = list.find((t) => t.id === selected) || list[0];
+  if (teams.isError) return <LoadError query={teams} />;
   return (
     <div className="teams-grid">
       <div className="teams-side">
@@ -342,6 +343,7 @@ function Roster({ team }) {
         </p>
       )}
       <RosterFilter data={roster.data} value={filter} onChange={setFilter} />
+      <LoadError query={roster} />
       {roster.data?.members.length === 0 && (
         <div className="group-note">{filter ? "Nobody on this team matches." : "Nobody is on this team yet."}</div>
       )}
@@ -396,6 +398,7 @@ function Jobs() {
         ))}
       </div>
       {retry.isError && <p className="error">{retry.error.message}</p>}
+      <LoadError query={jobs} />
       {jobs.data?.jobs.length === 0 ? (
         <div className="empty-state">
           <strong>{status === "dead" ? "No failed jobs." : "None right now."}</strong>
@@ -462,6 +465,7 @@ function describeAdmin(e) {
 
 function AdminLog() {
   const log = useQuery({ queryKey: ["admin", "events"], queryFn: () => api("/admin/events?limit=50") });
+  if (log.isError) return <LoadError query={log} />;
   if (log.data?.events.length === 0) {
     return (
       <div className="empty-state">

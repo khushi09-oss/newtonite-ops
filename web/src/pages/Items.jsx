@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useOutletContext, useSearchParams } from "react-router-dom";
+import { pollEvery, useLiveConnected } from "../live";
 import { api, newKey } from "../api";
 import { Icon } from "../icons";
 import { ItemRow, KIND_LABEL, PRIORITY_LABEL, STATUS_LABEL, StatusIcon } from "../ui";
@@ -32,9 +33,20 @@ export default function Items() {
   const foldKey = (s) => (filters.q ? `search:${s}` : s);
 
   // The search box waits for a pause before it touches the URL, so every keystroke is not a request.
+  // A search changed from outside (a sidebar link, Back) replaces what is in the box.
+  const written = useRef(filters.q || "");
+  useEffect(() => {
+    if ((filters.q || "") !== written.current) {
+      written.current = filters.q || "";
+      setSearch(written.current);
+    }
+  }, [filters.q]);
   useEffect(() => {
     const t = setTimeout(() => {
-      if (search !== filters.q) setFilter("q", search);
+      if (search !== written.current) {
+        written.current = search;
+        setFilter("q", search);
+      }
     }, 300);
     return () => clearTimeout(t);
   });
@@ -63,7 +75,12 @@ export default function Items() {
   const query = new URLSearchParams(
     Object.entries(filters).filter(([k, v]) => v && k !== "status"),
   ).toString();
-  const counts = useQuery({ queryKey: ["items", "counts", query], queryFn: () => api(`/items/counts?${query}`) });
+  const live = useLiveConnected();
+  const counts = useQuery({
+    queryKey: ["items", "counts", query],
+    queryFn: () => api(`/items/counts?${query}`),
+    refetchInterval: pollEvery(live),
+  });
   const groups = filters.status ? [filters.status] : STATUSES;
   const total = counts.data ? groups.reduce((n, s) => n + counts.data.counts[s], 0) : 0;
   const open = counts.data ? groups.filter((s) => !DONE.includes(s)).reduce((n, s) => n + counts.data.counts[s], 0) : 0;
@@ -208,6 +225,7 @@ function summary(open, done, filtered) {
 }
 
 function Group({ status, query, count, open, onToggle }) {
+  const live = useLiveConnected();
   const list = useInfiniteQuery({
     queryKey: ["items", query, status],
     queryFn: ({ pageParam }) =>
@@ -215,6 +233,7 @@ function Group({ status, query, count, open, onToggle }) {
     initialPageParam: null,
     getNextPageParam: (last) => last.next_cursor,
     enabled: open,
+    refetchInterval: pollEvery(live),
   });
   const items = list.data ? list.data.pages.flatMap((p) => p.items) : [];
 
@@ -286,7 +305,7 @@ function NewItem({ me, onDone }) {
       >
         <div className="modal-head">
           <h2 id="new-item-title">New item</h2>
-          <button type="button" className="ghost" aria-label="Close" onClick={() => dialog.current.close()}>
+          <button type="button" className="ghost" aria-label="Close (Esc)" onClick={() => dialog.current.close()}>
             Esc
           </button>
         </div>
