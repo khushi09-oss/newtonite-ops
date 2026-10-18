@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, useOutletContext, useSearchParams } from "react-router-dom";
 import { api, useRetryKey } from "../api";
 import { Icon } from "../icons";
-import { Avatar, Time, teamColor } from "../ui";
+import { Avatar, RosterFilter, Time, rosterQuery, teamColor } from "../ui";
 
 const ROLES = ["viewer", "member", "lead"];
 
@@ -274,7 +274,12 @@ function Teams() {
 }
 
 function Roster({ team }) {
-  const roster = useQuery({ queryKey: ["admin", "roster", team.id], queryFn: () => api(`/admin/teams/${team.id}/members`) });
+  const [filter, setFilter] = useState("");
+  const roster = useQuery({
+    queryKey: ["admin", "roster", team.id, filter],
+    queryFn: () => api(rosterQuery(`/admin/teams/${team.id}/members`, filter)),
+    placeholderData: keepPreviousData,
+  });
   // Search the server as you type, so anyone can be added, not only the first page of people.
   const [find, setFind] = useState("");
   const people = useQuery({
@@ -330,7 +335,10 @@ function Roster({ team }) {
           Released {remove.data.released} open item(s) they owned; each release is in that item's history.
         </p>
       )}
-      {roster.data?.members.length === 0 && <div className="group-note">Nobody is on this team yet.</div>}
+      <RosterFilter data={roster.data} value={filter} onChange={setFilter} />
+      {roster.data?.members.length === 0 && (
+        <div className="group-note">{filter ? "Nobody on this team matches." : "Nobody is on this team yet."}</div>
+      )}
       {roster.data?.members.map((m) => (
         <div key={m.id} className={`trow roster-row ${m.deactivated_at ? "off" : ""}`}>
           <span className="tperson">

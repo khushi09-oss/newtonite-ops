@@ -110,6 +110,10 @@ adding it would take. The reasoning behind what *was* built is in
   per team (`RSK-1204`).
   Why: the keys stay gapless and in order (D-23). People create items far slower than the lock
   is held. A bulk import into one team would queue.
+- **A team's people are listed 100 at a time.** The team page, the admin roster and the reassign
+  picker show the first 100, say so, and offer a search that finds anyone else by name or email.
+  Why: a list a thousand long is not a way to find someone; a search is. The picker asks only for
+  people who can own work, so viewers never take up its 100.
 - **A team's code cannot be edited** after the team is created.
   Why: every item key on the team is built from it, and links and messages quote those keys.
   Renaming would need the old code to keep working as an alias.

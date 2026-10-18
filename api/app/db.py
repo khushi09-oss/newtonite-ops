@@ -101,3 +101,10 @@ def seed_if_empty() -> bool:
             return False
         conn.execute(SEED.read_text(encoding="utf-8"))
     return True
+
+
+def contains(text: str) -> str:
+    """An ILIKE pattern matching `text` anywhere, with its own % and _ taken literally, so a search
+    for "50%" does not match everything."""
+    escaped = text.replace("\\", r"\\").replace("%", r"\%").replace("_", r"\_")
+    return f"%{escaped}%"

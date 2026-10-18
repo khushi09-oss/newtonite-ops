@@ -1,9 +1,9 @@
-import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom";
 import { api, useRetryKey } from "../api";
 import { Icon } from "../icons";
-import { Avatar, TEAM_COLOUR_NAMES, teamColor } from "../ui";
+import { Avatar, RosterFilter, TEAM_COLOUR_NAMES, rosterQuery, teamColor } from "../ui";
 
 const ROLES = ["viewer", "member", "lead"];
 const ROLE_HINT = {
@@ -166,7 +166,14 @@ export default function Team() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const team = me.visible_teams.find((t) => t.id === id);
-  const members = useQuery({ queryKey: ["members", id], queryFn: () => api(`/teams/${id}/members`), enabled: Boolean(team) });
+  const [find, setFind] = useState("");
+  useEffect(() => setFind(""), [id]); // a search on one team does not carry over to the next
+  const members = useQuery({
+    queryKey: ["members", id, find],
+    queryFn: () => api(rosterQuery(`/teams/${id}/members`, find)),
+    enabled: Boolean(team),
+    placeholderData: keepPreviousData,
+  });
   const config = useQuery({ queryKey: ["auth-config"], queryFn: () => api("/auth/config"), staleTime: Infinity });
   const done = { onSettled: () => qc.invalidateQueries({ queryKey: ["members", id] }) };
   const setRole = useMutation({ mutationFn: ({ email, role }) => api(`/teams/${id}/members`, { method: "PUT", body: { email, role } }), ...done });
@@ -221,8 +228,12 @@ export default function Team() {
       )}
 
       <h2 className="section-title">
-        Members <span className="count-inline">{members.data?.members.length ?? ""}</span>
+        Members{" "}
+        <span className="count-inline">
+          {members.data ? `${members.data.members.length}${members.data.capped ? "+" : ""}` : ""}
+        </span>
       </h2>
+      <RosterFilter data={members.data} value={find} onChange={setFind} />
       {error && <p className="error">{error.message}</p>}
       {remove.isSuccess && remove.data.released > 0 && (
         <p className="muted small">Released {remove.data.released} open item(s) they owned; each release is in the item's history.</p>

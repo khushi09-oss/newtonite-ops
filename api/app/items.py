@@ -653,15 +653,27 @@ def comment_item(
 
 
 @router.get("/teams/{team_id}/members")
-def team_members(team_id: UUID, user: dict = Depends(current_user)):
-    """Who can be assigned: active people on the team. The caller's own membership is checked in the
-    query, so outsiders get 404; a team whose members are all deactivated is an empty list."""
+def team_members(
+    team_id: UUID,
+    user: dict = Depends(current_user),
+    q: str | None = Query(None, max_length=120),
+    can_own: bool = False,
+):
+    """Active people on the team, the first 100. `q` finds anyone else by name or email, and
+    `can_own` leaves out viewers, who cannot be given work, so they never use up the 100. Outsiders
+    get 404; a team whose members are all deactivated is an empty list."""
+    where, params = "", []
+    if q:
+        where, params = " and (u.name ilike %s or u.email ilike %s)", [db.contains(q)] * 2
+    if can_own:
+        where += " and m.role <> 'viewer'"
     with db.pool.connection() as conn:
         if not visible_teams(conn, user, team_id):
             raise HTTPException(404, "team not found")
         rows = conn.execute(
             "select u.id, u.name, u.email, m.role from team_members m join users u on u.id = m.user_id"
-            " where m.team_id = %s and u.deactivated_at is null order by m.role, u.name limit %s",
-            (team_id, LIST_CAP + 1),
+            f" where m.team_id = %s and u.deactivated_at is null{where}"
+            " order by m.role, u.name limit %s",
+            (team_id, *params, LIST_CAP + 1),
         ).fetchall()
     return {"members": rows[:LIST_CAP], "capped": len(rows) > LIST_CAP}

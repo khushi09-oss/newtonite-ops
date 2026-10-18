@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useOutletContext, useParams } from "react-router-dom";
 import { api, newKey } from "../api";
 import { Icon } from "../icons";
@@ -10,6 +10,7 @@ import {
   PRIORITY_LABEL,
   Person,
   Priority,
+  RosterFilter,
   STATUS_LABEL,
   Status,
   StatusIcon,
@@ -19,6 +20,7 @@ import {
   describeEvent,
   formatDate,
   itemKey,
+  rosterQuery,
   teamColor,
 } from "../ui";
 
@@ -526,19 +528,24 @@ function EditForm({ it, canPriority, onSave, onCancel, busy }) {
 }
 
 function AssignPicker({ teamId, onPick, onCancel }) {
-  const members = useQuery({ queryKey: ["members", teamId], queryFn: () => api(`/teams/${teamId}/members`) });
+  const [find, setFind] = useState("");
+  // Only people who can own work, asked for by the server, so viewers never use up the first 100.
+  const members = useQuery({
+    queryKey: ["members", teamId, "can-own", find],
+    queryFn: () => api(rosterQuery(`/teams/${teamId}/members`, find, "&can_own=true")),
+    placeholderData: keepPreviousData,
+  });
   return (
     <div className="assign">
       {members.isPending && <span className="muted">Loading team</span>}
       {members.isError && <span className="error">{members.error.message}</span>}
-      {members.data &&
-        members.data.members
-          .filter((m) => m.role !== "viewer")
-          .map((m) => (
-            <button key={m.id} className="assign-option" onClick={() => onPick(m)}>
-              <Person name={m.name} /> <span className="role">{m.role}</span>
-            </button>
-          ))}
+      <RosterFilter data={members.data} value={find} onChange={setFind} />
+      {members.data?.members.length === 0 && <span className="muted small">Nobody here matches.</span>}
+      {members.data?.members.map((m) => (
+        <button key={m.id} className="assign-option" onClick={() => onPick(m)}>
+          <Person name={m.name} /> <span className="role">{m.role}</span>
+        </button>
+      ))}
       <button className="link" onClick={onCancel}>
         Cancel
       </button>
