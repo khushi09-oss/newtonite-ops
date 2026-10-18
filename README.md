@@ -43,14 +43,15 @@ admits only people an admin has invited, and there is no passwordless sign-in.
 Open the site in two windows, one of them private, so you can be two people at once.
 
 1. **Claim race.** Sign in as **Risk member** in one window and **Risk lead** in the other. Open
-   the same unclaimed item in both (Inbox, "Urgent, unclaimed") and press Claim in both. One wins;
-   the other is told who did, and both pages agree.
+   the same unclaimed item in both (Inbox, "Urgent, unclaimed"), side by side. Press Claim in one,
+   then within a second in the other, before the live update arrives. One wins; the other is
+   rolled back and told who did, and both pages agree.
 2. **Live updates.** Leave the item open in one window and comment in the other. The comment
    appears without a reload.
 3. **Stale edit.** Live updates usually refresh a page before anyone can act on an old copy. When
    a change still slips past (two people within a second, or a laptop waking from sleep), the
    late action is rolled back with a note naming who changed what, and Retry applies it on top.
-   The claim race in step 1 shows that note; the browser tests force the slower case.
+   Step 1 shows that note; the browser tests also force the slower case.
 4. **Approvals.** As the member, claim an item and request approval. The lead finds it under
    "Needs my approval" and approves or rejects it with a note; nobody approves their own request.
    Then the member resolves it and only the lead can close it.
