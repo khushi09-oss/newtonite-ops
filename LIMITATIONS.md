@@ -94,8 +94,9 @@ adding it would take. The reasoning behind what *was* built is in
   Why: the only database is the production one, and previews must never write to it. Neon can
   give each preview its own branch of the database; that setting is not turned on yet.
 - **Live updates check every 1.5 seconds per open tab** instead of being pushed by the database.
-  Only the open item and the notification count update live. The inbox and the list refresh on
-  those events or once a minute.
+  Only the open item and the notification count update live. The inbox refreshes on those
+  events; the items list refreshes once a minute, or every 15 seconds while live updates are
+  down, so a busy team does not reload it on every change.
   Why: Postgres `LISTEN/NOTIFY` does not pass through Neon's connection pooler (D-20). Each
   check is one small indexed query.
 

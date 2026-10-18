@@ -91,7 +91,8 @@ export default function Notifications() {
                   className={`nrow ${n.read_at ? "" : "unread"}`}
                   onClick={() => n.read_at || read.mutate(n.id)}
                 >
-                  <i className="dot" aria-label={n.read_at ? undefined : "Unread"} />
+                  <i className="dot" aria-hidden="true" />
+                  {!n.read_at && <span className="visually-hidden">Unread: </span>}
                   <Avatar name={n.actor_name} size={28} />
                   <span className="nrow-text">
                     <span className="nrow-line">

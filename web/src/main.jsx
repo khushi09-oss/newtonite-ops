@@ -43,7 +43,15 @@ function Shell() {
   const config = useQuery({ queryKey: ["auth-config"], queryFn: () => api("/auth/config"), staleTime: Infinity });
 
   if (me.isPending) return <div className="page-loading">Loading</div>;
-  if (me.isError) return <Navigate to="/login" replace />;
+  if (me.isError && me.error.status === 401) return <Navigate to="/login" replace />;
+  if (me.isError) {
+    return (
+      <div className="page-loading">
+        <p>{me.error.message}</p>
+        <button onClick={() => me.refetch()}>Try again</button>
+      </div>
+    );
+  }
 
   return (
     <LiveUpdates itemId={itemMatch?.params.id} onEnded={onEnded}>

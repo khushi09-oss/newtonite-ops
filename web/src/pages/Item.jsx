@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useOutletContext, useParams } from "react-router-dom";
 import { api, newKey } from "../api";
@@ -28,7 +28,15 @@ const NOTE_REQUIRED = { "awaiting_approval>triaged": true };
 const ORDER = Object.keys(STATUS_LABEL);
 const FINISHED = ["resolved", "closed"];
 
-export default function Item() {
+// Events by their sequence number, each once, newest first.
+const mergeEvents = (...lists) => [...new Map(lists.flat().map((e) => [e.seq, e])).values()].sort((a, b) => b.seq - a.seq);
+
+export default function ItemPage() {
+  const { id } = useParams();
+  return <Item key={id} />;
+}
+
+function Item() {
   const { id } = useParams();
   const me = useOutletContext();
   const qc = useQueryClient();
@@ -39,6 +47,11 @@ export default function Item() {
   const [conflict, setConflict] = useState(null); // {current, events, vars}
   const [problem, setProblem] = useState(null);
   const [older, setOlder] = useState([]); // events paged in below the first 20
+  const [olderState, setOlderState] = useState(null); // null, "loading", or an error message
+  const firstPage = item.data?.events;
+  useEffect(() => {
+    if (firstPage) setOlder((o) => (o.length ? mergeEvents(o, firstPage) : o));
+  }, [firstPage]);
   const [noteFor, setNoteFor] = useState(null); // transition target that needs a note
   const [note, setNote] = useState("");
   const [editing, setEditing] = useState(false);
@@ -52,7 +65,8 @@ export default function Item() {
       await qc.cancelQueries({ queryKey: key });
       const prev = qc.getQueryData(key);
       if (vars.optimistic && prev) {
-        qc.setQueryData(key, { ...prev, ...vars.optimistic(prev), version: prev.version + 1 });
+        const bump = vars.versioned === false ? 0 : 1; // watching is not a change to the item
+        qc.setQueryData(key, { ...prev, ...vars.optimistic(prev), version: prev.version + bump });
       }
       setProblem(null);
       return { prev };
@@ -121,7 +135,8 @@ export default function Item() {
   }
 
   const transitions = it.allowed_actions.filter((a) => a.startsWith("transition:")).map((a) => a.slice(11));
-  const events = [...it.events, ...older];
+  // Newest first, each event once: the first page as it is now, plus everything paged in before.
+  const events = mergeEvents(older, it.events);
   const last = conflict && conflict.events && conflict.events[0];
   // The step that moves the work on gets the primary button: a claim that starts the work, else the
   // next status along, else a claim that only takes ownership. The server says which a claim is.
@@ -158,6 +173,7 @@ export default function Item() {
                 path: `/items/${id}/watch`,
                 method: it.watching ? "DELETE" : "POST",
                 optimistic: (old) => ({ watching: !old.watching }),
+                versioned: false,
               })
             }
             disabled={busy}
@@ -302,16 +318,26 @@ export default function Item() {
               )}
             </ol>
             {events.length >= 20 && events.length < it.version && (
-              <button
-                className="link older"
-                onClick={async () => {
-                  const min = Math.min(...events.map((e) => e.seq));
-                  const page = await api(`/items/${id}/events?before_seq=${min}&limit=50`);
-                  setOlder((o) => [...o, ...page.events]);
-                }}
-              >
-                Show older activity
-              </button>
+              <>
+                <button
+                  className="link older"
+                  disabled={olderState === "loading"}
+                  onClick={async () => {
+                    setOlderState("loading");
+                    try {
+                      const min = Math.min(...events.map((e) => e.seq));
+                      const page = await api(`/items/${id}/events?before_seq=${min}&limit=50`);
+                      setOlder((o) => mergeEvents(o, events, page.events));
+                      setOlderState(null);
+                    } catch (err) {
+                      setOlderState(err.message);
+                    }
+                  }}
+                >
+                  {olderState === "loading" ? "Loading older activity" : "Show older activity"}
+                </button>
+                {olderState && olderState !== "loading" && <p className="error small">{olderState}</p>}
+              </>
             )}
           </section>
         </article>
@@ -468,12 +494,15 @@ function nextHint(it, canAct, primary) {
   }
 }
 
+// YYYY-MM-DD in the reader's own time zone, the day formatDate shows. "" for no date.
+const localDay = (iso) => (iso ? new Date(iso).toLocaleDateString("en-CA") : "");
+
 function EditForm({ it, canPriority, onSave, onCancel, busy }) {
   const [form, setForm] = useState({
     title: it.title,
     description: it.description,
     priority: it.priority,
-    due_at: it.due_at ? it.due_at.slice(0, 10) : "",
+    due_at: localDay(it.due_at),
   });
   const set = (k) => (e) => setForm({ ...form, [k]: k === "priority" ? Number(e.target.value) : e.target.value });
   return (
@@ -485,8 +514,8 @@ function EditForm({ it, canPriority, onSave, onCancel, busy }) {
         if (form.title !== it.title) changes.title = form.title.trim();
         if (form.description !== it.description) changes.description = form.description;
         if (canPriority && form.priority !== it.priority) changes.priority = form.priority;
-        const due = form.due_at ? new Date(form.due_at).toISOString() : null;
-        if (due !== it.due_at) changes.due_at = due;
+        // The day as the person sees it; the stored time is kept unless they picked another day.
+        if (form.due_at !== localDay(it.due_at)) changes.due_at = form.due_at ? new Date(`${form.due_at}T00:00:00`).toISOString() : null;
         if (Object.keys(changes).length) onSave(changes);
         else onCancel();
       }}

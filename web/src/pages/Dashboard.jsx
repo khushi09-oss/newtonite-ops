@@ -91,14 +91,10 @@ export default function Dashboard() {
                 </>
               );
               const cls = `tile tile-${t.key} ${t.alert && n > 0 ? "alert" : ""}`;
-              return t.to ? (
+              return (
                 <Link key={t.key} to={t.to} className={cls}>
                   {body}
                 </Link>
-              ) : (
-                <div key={t.key} className={cls}>
-                  {body}
-                </div>
               );
             })}
           </section>

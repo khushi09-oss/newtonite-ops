@@ -2,10 +2,10 @@
 // ordinal ramp on Newtonite blue for workflow order (light = earliest), and blue against orange for
 // the trend, far apart under every kind of colour blindness.
 import { useEffect, useRef, useState } from "react";
-import { STATUS_LABEL } from "./ui";
+import { STATUS_LABEL, formatDate } from "./ui";
 
-export const OPEN_ORDER = ["new", "triaged", "in_progress", "awaiting_approval", "approved"];
-export const STATUS_RAMP = {
+const OPEN_ORDER = ["new", "triaged", "in_progress", "awaiting_approval", "approved"];
+const STATUS_RAMP = {
   new: "#9db1ff",
   triaged: "#6f8bff",
   in_progress: "#2e5bff",
@@ -29,7 +29,7 @@ export function TeamBars({ teams }) {
   const max = Math.max(1, ...totals);
   return (
     <div>
-      <div className="legend" aria-hidden={table}>
+      <div className="legend">
         {OPEN_ORDER.map((s) => (
           <span key={s}>
             <i className="swatch" style={{ background: STATUS_RAMP[s] }} />
@@ -104,7 +104,7 @@ function niceMax(v) {
   return Math.ceil(v / step) * step;
 }
 
-const day = (iso) => new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+const day = (iso) => formatDate(`${iso}T00:00:00`);
 
 export function TrendChart({ trend }) {
   const [hover, setHover] = useState(null);
