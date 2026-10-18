@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from test_google import CLIENT, KEY, token
 
 from app import db, google
-from app.items import allowed_actions
+from app.items import allowed_actions, visible_teams
 from app.notifications import notify
 from app.main import app
 
@@ -144,15 +144,15 @@ def test_deactivation_ends_sessions_and_releases_work(client, team):
 
 
 def test_a_new_team_takes_the_colour_least_used_among_the_teams_its_creator_sees(client, login):
-    login(ADMIN)
-    used = [t["color"] for t in client.get("/me").json()["visible_teams"]]
+    admin = login(ADMIN)
+    with db.pool.connection() as conn:  # every team the admin sees, past the 200 /me sends too
+        used = [t["color"] for t in visible_teams(conn, {**admin, "is_admin": True})]
     least = min(range(8), key=lambda c: (used.count(c), c))
     team = client.post("/admin/teams", json={"name": f"Colour {uuid4().hex[:8]}"}).json()
     assert team["color"] == least
     # The colour travels with the team: the team list, /me, and every item on it.
-    assert {t["id"]: t["color"] for t in client.get("/admin/teams").json()["teams"]}[
-        team["id"]
-    ] == least
+    listed = client.get("/admin/teams", params={"q": team["name"]}).json()["teams"]
+    assert [t["color"] for t in listed] == [least]
     item = new_item(client, team)
     assert item["team_color"] == least
 
@@ -353,3 +353,33 @@ def test_an_invite_or_team_with_bad_input_is_refused_not_a_500(client, team):
     assert client.post("/admin/teams", json={"name": "   "}).status_code == 422
     body = {"email": f"blank-{uuid4().hex[:8]}@example.com", "name": "  "}
     assert client.post("/admin/users", json=body).status_code == 422
+
+
+def test_an_admin_over_many_teams_gets_the_first_200_and_finds_the_rest(client, login):
+    """`/me` carries the teams every screen lists. Past 200 it stops, says so, gives the true total,
+    never drops one of your own teams, and search and fetch-by-id reach any other."""
+    tag = uuid4().hex[:6].upper()
+    with db.pool.connection() as conn:
+        conn.execute(
+            "insert into teams (name, key, color)"
+            " select 'Many ' || %s || ' ' || lpad(g::text, 3, '0'), 'M' || %s || g, g %% 8"
+            " from generate_series(1, 201) as g",
+            (tag, tag),
+        )
+        last = conn.execute(
+            "select id from teams where name = %s", (f"Many {tag} 201",)
+        ).fetchone()["id"]
+    admin = login(ADMIN)
+    me = client.get("/me").json()
+    assert len(me["visible_teams"]) == 200 and me["visible_teams_capped"] is True
+    assert me["visible_teams_total"] > 200
+    assert {t["id"] for t in me["teams"]} <= {t["id"] for t in me["visible_teams"]}  # own first
+    found = client.get("/teams", params={"q": f"many {tag} 201"}).json()["teams"]
+    assert [t["id"] for t in found] == [str(last)] and found[0]["role"] == "admin"
+    assert client.get(f"/teams/{last}").json()["name"] == f"Many {tag} 201"
+
+    login("dev.mehta@newtonite.dev")  # not an admin and not on it
+    assert client.get(f"/teams/{last}").status_code == 404
+    assert client.get("/teams", params={"q": f"many {tag}"}).json()["teams"] == []
+    assert client.get("/me").json()["visible_teams_capped"] is False
+    assert admin["is_admin"]

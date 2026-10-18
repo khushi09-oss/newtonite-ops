@@ -9,7 +9,7 @@
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from psycopg.errors import UniqueViolation
 from pydantic import BaseModel, Field
 
@@ -17,9 +17,34 @@ from app import db, demo
 from app.admin import record, release_if_viewer, release_open_items, team_key
 from app.auth import current_user
 from app.idempotency import RetryKey, idempotent
-from app.items import TEAM_COLOURS, Text, next_team_colour
+from app.items import TEAM_COLOURS, Text, next_team_colour, visible_teams
 
 router = APIRouter()
+
+
+TEAM_SEARCH_CAP = 20
+
+
+@router.get("/teams")
+def find_teams(
+    user: dict = Depends(current_user),
+    q: str | None = Query(None, max_length=80),
+):
+    """Teams you can see whose name or code contains `q`, the first 20. For the screens' team lists,
+    which carry 200 at most (`/me`), when someone sees more teams than that."""
+    with db.pool.connection() as conn:
+        rows = visible_teams(conn, user, q=q, limit=TEAM_SEARCH_CAP + 1)
+    return {"teams": rows[:TEAM_SEARCH_CAP], "capped": len(rows) > TEAM_SEARCH_CAP}
+
+
+@router.get("/teams/{team_id}")
+def get_team(team_id: UUID, user: dict = Depends(current_user)):
+    """One team you can see, as `/me` lists them. Outsiders get 404."""
+    with db.pool.connection() as conn:
+        found = visible_teams(conn, user, team_id)
+    if not found:
+        raise HTTPException(404, "team not found")
+    return found[0]
 
 
 class NewTeam(BaseModel):

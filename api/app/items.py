@@ -194,19 +194,40 @@ def apply_change(
     return row
 
 
-def visible_teams(conn, user: dict, team_id=None) -> list[dict]:
+TEAM_LIST_CAP = 200  # teams sent to the screens at once; the rest are found by search
+
+
+def _visible(user: dict, team_id=None, q=None) -> tuple[str, dict]:
+    """FROM and WHERE for "the teams the caller can see", with an optional id or search."""
+    cond = " and t.id = %(team)s" if team_id is not None else ""
+    if q:
+        cond += " and (t.name ilike %(q)s or t.key ilike %(q)s)"
+    sql = (
+        " from teams t left join team_members m on m.team_id = t.id and m.user_id = %(me)s"
+        f" where (m.user_id is not null or {ADMIN_SEES}){cond}"
+    )
+    params = {"admin": user["is_admin"], "me": user["id"], "team": team_id}
+    return sql, {**params, "q": db.contains(q) if q else None}
+
+
+def visible_teams(conn, user: dict, team_id=None, q=None, limit=None) -> list[dict]:
     """Every team the caller can see, their role on it ("admin" when they see it only as an admin),
     and whether they may create items there. The one rule behind creating an item and behind every
-    team list the screens show, so a picker can never offer a team the server would refuse."""
-    cond = " and t.id = %(team)s" if team_id is not None else ""
+    team list the screens show, so a picker can never offer a team the server would refuse. Your own
+    teams come first, so a `limit` never cuts one of them."""
+    sql, params = _visible(user, team_id, q)
+    cap = " limit %(limit)s" if limit is not None else ""
     return conn.execute(
         "select t.id, t.name, t.key, t.color, t.private, coalesce(m.role, 'admin') as role,"
         " (%(admin)s or coalesce(m.role in ('member', 'lead'), false)) as can_create"
-        " from teams t left join team_members m on m.team_id = t.id and m.user_id = %(me)s"
-        f" where (m.user_id is not null or {ADMIN_SEES}){cond}"
-        " order by m.user_id is null, t.name",
-        {"admin": user["is_admin"], "me": user["id"], "team": team_id},
+        f"{sql} order by m.user_id is null, t.name{cap}",
+        {**params, "limit": limit},
     ).fetchall()
+
+
+def count_visible_teams(conn, user: dict) -> int:
+    sql, params = _visible(user)
+    return conn.execute(f"select count(*) as n{sql}", params).fetchone()["n"]
 
 
 TEAM_COLOURS = 8  # palette slots; the screens hold the eight colours (ui.jsx TEAM_SWATCHES)
@@ -215,8 +236,12 @@ TEAM_COLOURS = 8  # palette slots; the screens hold the eight colours (ui.jsx TE
 def next_team_colour(conn, user: dict) -> int:
     """The palette slot least used among the teams `user` can see, lowest first on a tie. A new team
     takes it, so up to eight teams always look different in anyone's sidebar and lists."""
-    used = [t["color"] for t in visible_teams(conn, user)]
-    return min(range(TEAM_COLOURS), key=lambda c: (used.count(c), c))
+    sql, params = _visible(user)
+    used = {
+        r["color"]: r["n"]
+        for r in conn.execute(f"select t.color, count(*) as n{sql} group by 1", params)
+    }
+    return min(range(TEAM_COLOURS), key=lambda c: (used.get(c, 0), c))
 
 
 def team_scope(conn, user: dict) -> tuple[list, list]:

@@ -41,9 +41,9 @@ export default function Dashboard() {
           </h1>
           <p className="muted">
             {today}.{" "}
-            {me.visible_teams.length === 0
+            {me.visible_teams_total === 0
               ? "Your workspace is empty. Start with a team."
-              : `Here is what needs you across ${me.visible_teams.length} team${me.visible_teams.length === 1 ? "" : "s"}.`}
+              : `Here is what needs you across ${me.visible_teams_total} team${me.visible_teams_total === 1 ? "" : "s"}.`}
           </p>
         </div>
       </header>

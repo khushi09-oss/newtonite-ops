@@ -3,7 +3,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom";
 import { api, useRetryKey } from "../api";
 import { Icon } from "../icons";
-import { Avatar, LoadError, RosterFilter, TEAM_COLOUR_NAMES, rosterQuery, teamColor } from "../ui";
+import { Avatar, LoadError, RosterFilter, TEAM_COLOUR_NAMES, rosterQuery, teamColor, useTeam } from "../ui";
 
 const ROLES = ["viewer", "member", "lead"];
 const ROLE_HINT = {
@@ -165,7 +165,7 @@ export default function Team() {
   const { id } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const team = me.visible_teams.find((t) => t.id === id);
+  const { team, pending } = useTeam(me, id);
   const [find, setFind] = useState("");
   useEffect(() => setFind(""), [id]); // a search on one team does not carry over to the next
   const members = useQuery({
@@ -179,6 +179,7 @@ export default function Team() {
   const setRole = useMutation({ mutationFn: ({ email, role }) => api(`/teams/${id}/members`, { method: "PUT", body: { email, role } }), ...done });
   const remove = useMutation({ mutationFn: (userId) => api(`/teams/${id}/members/${userId}`, { method: "DELETE" }), ...done });
 
+  if (pending) return <div className="page-loading">Loading team</div>;
   if (!team) {
     return (
       <div className="page">
