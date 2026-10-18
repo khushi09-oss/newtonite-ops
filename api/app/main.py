@@ -3,10 +3,12 @@ import os
 import time
 from contextlib import asynccontextmanager
 
+import psycopg
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
+from psycopg_pool import PoolTimeout
 from starlette.background import BackgroundTask
 
 from app import (
@@ -101,6 +103,18 @@ def stale_version(request: Request, exc: items.Conflict):
         events = items.recent_events(conn, exc.item["id"])
     return JSONResponse(
         jsonable_encoder({"detail": "stale version", "current": current, "events": events}), 409
+    )
+
+
+@app.exception_handler(PoolTimeout)
+@app.exception_handler(psycopg.OperationalError)
+def database_unavailable(request: Request, exc: Exception):
+    """The database is down, waking, or dropped the connection mid-request. Every route gets the same
+    plain 503 rather than a bare 500. Any write is one transaction, so nothing is half-saved, and a
+    retry with the same Idempotency-Key cannot run twice."""
+    log.error("database unavailable on %s %s: %s", request.method, request.url.path, exc)
+    return JSONResponse(
+        {"detail": "The database is not answering right now. Try again in a moment."}, 503
     )
 
 

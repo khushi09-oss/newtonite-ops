@@ -611,3 +611,19 @@ gives every write a key; the forms that create something keep theirs until they 
 form, when the first send did land, answers 422 instead of running the new request. That is the
 rule D-03 chose: one key, one request.
 
+## D-35 When the database is not answering, every route says so with a 503, within ten seconds
+
+**Situation.** With the database down, a request waited the pool library's default 30 seconds for a
+connection, then failed with an unhandled `PoolTimeout` and a bare 500. A connection dropped
+mid-request gave the same 500. Found while writing down what happens when things fail.
+
+**Decision.** One app-wide handler turns `PoolTimeout` and `psycopg.OperationalError` into a 503
+saying "The database is not answering right now. Try again in a moment.", logged with the route.
+The pool waits at most 10 seconds for a connection. Every write is one transaction, so nothing is
+half-saved, and a retry with the same `Idempotency-Key` cannot run twice (D-34). When the database
+comes back, the next request works without restarting anything.
+
+**Trade-off.** A query the database cancels, for example on a statement timeout, also reads as
+"not answering", which is close enough for a person. Ten seconds is long enough for Neon to wake a
+suspended database (about a second) and short enough not to look frozen.
+

@@ -39,12 +39,15 @@ class LivePool(ConnectionPool):
 # prepare_threshold=None: no server-side prepared statements, which a transaction-mode pooler such as
 # Neon's can route to the wrong server connection. The cost is negligible at this query volume.
 # max_idle: idle connections are retired after a minute, before the database closes them itself.
+# timeout: a request waits at most 10 s for a connection, then the app answers 503 (main.py), instead
+# of hanging for the library's default 30 s while the database is down.
 pool = LivePool(
     DATABASE_URL,
     min_size=1,
     max_size=int(os.environ.get("DB_POOL_MAX", "20")),
     open=False,
     max_idle=60,
+    timeout=10,
     kwargs={"row_factory": dict_row, "prepare_threshold": None},
 )
 log = logging.getLogger("db")

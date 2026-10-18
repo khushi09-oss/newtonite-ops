@@ -30,3 +30,25 @@ def test_a_connection_the_database_dropped_is_replaced_not_served(client, login)
         assert client.get("/me").status_code == 200
     # And quickly: dead connections are skipped at once, not retried with growing waits.
     assert time.monotonic() - started < 3
+
+
+def test_a_database_that_is_not_answering_gets_a_plain_503_on_every_route(
+    client, login, monkeypatch
+):
+    """Down, waking, or dropping connections: every route answers the same plain 503, quickly,
+    instead of hanging and answering a bare 500."""
+    from psycopg_pool import PoolTimeout
+
+    login("dev.mehta@newtonite.dev")
+    for failure in (PoolTimeout("no connection"), psycopg.OperationalError("server closed")):
+
+        def down(*args, failure=failure, **kwargs):
+            raise failure
+
+        monkeypatch.setattr(db.pool, "getconn", down)
+        for method, path in [("GET", "/me"), ("GET", "/items"), ("POST", "/notifications/read")]:
+            r = client.request(method, path, json={"up_to": 1} if method == "POST" else None)
+            assert r.status_code == 503, (method, path, r.text)
+            assert r.json()["detail"].startswith("The database is not answering")
+        monkeypatch.undo()
+    assert client.get("/me").status_code == 200  # and back to normal once it answers
