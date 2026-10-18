@@ -1,0 +1,7 @@
+# The local stack in demo mode, for workspace.spec.js:
+#   docker compose -f docker-compose.yml -f e2e/demo.yml up -d api
+# Start it again without this file before running the API tests, which expect demo mode off.
+services:
+  api:
+    environment:
+      DEMO_MODE: "true"

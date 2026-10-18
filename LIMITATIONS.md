@@ -149,14 +149,15 @@ adding it would take. The reasoning behind what *was* built is in
 ## Testing
 
 - **The browser tests cover what only a browser shows:** a stale edit, a claim race, live
-  updates, one item's whole workflow across four people, and a layout check of every screen and
-  dialog at desktop and phone width. The layout check catches text drawn over text, sideways
+  updates, one item's whole workflow across four people, a visitor's workspace from empty to a
+  closed item, and a layout check of every screen and dialog at desktop and phone width. The layout check catches text drawn over text, sideways
   scroll and labels too long for their buttons. It cannot judge whether a screen looks good, so
   that is still checked by eye from its screenshots. There are no component tests.
   Why: the server rules are tested directly against real Postgres, more than a hundred tests.
-- **The workspace flow is not in the automated browser tests.**
-  Why: it starts with a real Google sign-in, which a test cannot do. It was driven by hand in a
-  real browser, and its rules are covered by API tests.
+- **The workspace browser test does not sign in through Google,** and runs only when the local
+  stack is in demo mode (`e2e/demo.yml`).
+  Why: a test cannot complete a real Google sign-in, so it makes each visitor's session inside the
+  API container, as the API tests do. Google sign-in itself is covered by API tests with a test key.
 - **Tests never run against the live site's data.**
   Why: the demo is shared, and nothing can be deleted, so a test item would sit in every
   visitor's lists until the nightly reset.

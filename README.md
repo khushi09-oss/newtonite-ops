@@ -272,6 +272,14 @@ npx playwright test                                              # against the l
 BASE_URL=https://newtonite-ops-vert.vercel.app npx playwright test  # live: read-only smoke only
 ```
 
+The workspace test needs the stack in demo mode, and skips with that message otherwise:
+
+```bash
+docker compose -f docker-compose.yml -f e2e/demo.yml up -d api   # demo mode on
+npx playwright test                                              # from e2e/, now with the workspace test
+docker compose up -d api                                         # off again before the API tests
+```
+
 Tests run against the real Postgres in the stack, not SQLite, because the claim race, the
 idempotency lock and the outbox all depend on Postgres row locking. The API image carries its
 own copy of the code, so after changing code or tests run `docker compose up --build -d`
@@ -305,6 +313,7 @@ before testing again.
 | A screen breaks for one of the roles on the live site | Browser: `smoke.spec.js`, read-only, every screen as each demo person |
 | Text is drawn over other text, or a page scrolls sideways | Browser: `layout.spec.js`, read-only, every screen and dialog as each demo person, desktop and phone |
 | The workflow breaks somewhere between new and closed | Browser: `workflow.spec.js`, one item through every status with a member, the lead, a viewer and an outsider |
+| A first-time visitor cannot get from an empty workspace to finished work, or someone else sees it | Browser: `workspace.spec.js`, demo mode: the setup card, an invite, a teammate who claims and resolves, the lead who approves and closes, then another visitor and the demo admin both get "not found" |
 
 ## How it is built
 
