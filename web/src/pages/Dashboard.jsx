@@ -109,11 +109,20 @@ export default function Dashboard() {
                 <div className="card-head">
                   <div>
                     <h2>Open work by team</h2>
-                    <p>Bar length is the team's open items; segments follow the workflow, earliest lightest.</p>
+                    <p>
+                      {q.data.by_team_capped ? `The ${q.data.by_team.length} busiest of ${q.data.teams_with_open_work} teams. ` : ""}
+                      Bar length is the team's open items; segments follow the workflow, earliest lightest.
+                    </p>
                   </div>
                 </div>
                 <div className="card-body">
                   {q.data.by_team.length ? <TeamBars teams={q.data.by_team} /> : <p className="empty">No open work on your teams.</p>}
+                  {q.data.by_team_capped && (
+                    <p className="muted small more-note">
+                      {q.data.teams_with_open_work - q.data.by_team.length} more teams have open work.{" "}
+                      <Link to="/items">See all open items</Link>
+                    </p>
+                  )}
                 </div>
               </section>
               <section className="card">
